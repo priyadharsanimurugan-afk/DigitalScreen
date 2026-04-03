@@ -9,18 +9,22 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      
+      <Stack>
+        {/* ✅ ONLY LOGIN */}
+        <Stack.Screen name="login" options={{ headerShown: false }} />
 
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        
-        <Stack initialRouteName="login">
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        </Stack>
+        {/* ✅ Your routes */}
+        <Stack.Screen name="(admin)/dashboard" options={{ headerShown: false }} />
+        <Stack.Screen name="(tv)/display" options={{ headerShown: false }} />
 
-        <StatusBar style="auto" />
-        
-      </ThemeProvider>
+        {/* optional */}
+        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+      </Stack>
 
+      <StatusBar style="auto" />
+    </ThemeProvider>
   );
 }
+
