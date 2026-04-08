@@ -1,4 +1,4 @@
-// app/index.styles.ts
+// app/dashboard.styles.ts
 import { StyleSheet } from "react-native";
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
