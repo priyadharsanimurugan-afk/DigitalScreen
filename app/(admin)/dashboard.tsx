@@ -31,13 +31,25 @@ const MOCK = [
 const TAGS    = ["All","gym","fitness","food","hotel","sale","event","tech","brand"];
 const RATIOS  = [{ l:"1:1",v:1 },{ l:"4:3",v:4/3 },{ l:"16:9",v:16/9 },{ l:"2:1",v:2 }];
 const LAYOUTS = [
-  { label:"Full", cols:1, rows:1, slots:1 },
-  { label:"1×2",  cols:1, rows:2, slots:2 },
-  { label:"2×1",  cols:2, rows:1, slots:2 },
-  { label:"2×2",  cols:2, rows:2, slots:4 },
-  { label:"3×1",  cols:3, rows:1, slots:3 },
-  { label:"1×3",  cols:1, rows:3, slots:3 },
+  // 🔹 Single
+  { label: "1×1", cols: 1, rows: 1, slots: 1 },
+
+  // 🔹 Vertical splits (columns = 1)
+  { label: "1×2", cols: 1, rows: 2, slots: 2 },
+  { label: "1×3", cols: 1, rows: 3, slots: 3 },
+  { label: "1×4", cols: 1, rows: 4, slots: 4 },
+
+  // 🔹 Horizontal splits (rows = 1)
+  { label: "2×1", cols: 2, rows: 1, slots: 2 },
+  { label: "3×1", cols: 3, rows: 1, slots: 3 },
+  { label: "4×1", cols: 4, rows: 1, slots: 4 },
+
+  // 🔹 Grid layouts
+  { label: "2×2", cols: 2, rows: 2, slots: 4 },
+  { label: "2×3", cols: 2, rows: 3, slots: 6 },
+  { label: "2×4", cols: 2, rows: 4, slots: 8 },
 ];
+
 
 const SLIDESHOW_MAX = 10;
 
@@ -539,17 +551,17 @@ const s = StyleSheet.create({
 const pv = StyleSheet.create({
   wrap:{ width:"100%", backgroundColor:"#0A1628", borderRadius:14, overflow:"hidden" },
   bar:{ flexDirection:"row", alignItems:"center", gap:6, backgroundColor:"#0D1F3C",
-    paddingHorizontal:14, paddingVertical:10, flexWrap:"wrap" },
+  paddingHorizontal:14, paddingVertical:10, flexWrap:"wrap" },
   dot:{ width:9, height:9, borderRadius:5 },
   barT:{ fontSize:11, color:"#64748B", marginLeft:6, flex:1 },
   liveBadge:{ flexDirection:"row", alignItems:"center", gap:4, backgroundColor:"#EF444422",
-    paddingHorizontal:8, paddingVertical:3, borderRadius:6 },
+  paddingHorizontal:8, paddingVertical:3, borderRadius:6 },
   liveDot:{ width:6, height:6, borderRadius:3, backgroundColor:"#EF4444" },
   liveT:{ fontSize:9, color:"#EF4444", letterSpacing:1 },
   empty:{ flex:1, alignItems:"center", justifyContent:"center", borderWidth:0.5, borderColor:"#ffffff11" },
   emptyT:{ color:"#ffffff22", fontSize:11 },
   slideDots:{ position:"absolute", bottom:8, left:0, right:0,
-    flexDirection:"row", justifyContent:"center", gap:5 },
+  flexDirection:"row", justifyContent:"center", gap:5 },
   slideDot:{ width:5, height:5, borderRadius:3, backgroundColor:"#ffffff44" },
   slideDotA:{ width:14, backgroundColor:"#fff" },
   titleOverlay:{ position:"absolute", bottom:0, left:0, right:0,
