@@ -1,4 +1,4 @@
-// app/index.tsx
+// app/portal.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
