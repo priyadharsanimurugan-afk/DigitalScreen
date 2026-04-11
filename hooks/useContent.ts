@@ -70,16 +70,16 @@ const fetchLUTData = async () => {
 };
 
   // ================= DEVICE DISPLAY (TV) =================
-  const fetchDeviceDisplay = async () => {
-    try {
-      const data = await getDeviceDisplay();
-      setDeviceDisplay(data);
-      return data;
-    } catch (error) {
-      setDeviceDisplay(null);
-      return null;
-    }
-  };
+  // const fetchDeviceDisplay = async () => {
+  //   try {
+  //     const data = await getDeviceDisplay();
+  //     setDeviceDisplay(data);
+  //     return data;
+  //   } catch (error) {
+  //     setDeviceDisplay(null);
+  //     return null;
+  //   }
+  // };
 
   // ================= LIVE DISPLAY (ADMIN) =================
   const fetchLiveDisplay = async () => {
@@ -143,7 +143,7 @@ const fetchLUTData = async () => {
     await Promise.all([
       fetchLUTData(),
       fetchLiveDisplay(),
-      fetchDeviceDisplay(), // ✅ added
+      // fetchDeviceDisplay(), // ✅ added
     ]);
   };
 
@@ -171,7 +171,7 @@ const fetchLUTData = async () => {
 
     fetchLUTData,
     fetchLiveDisplay,
-    fetchDeviceDisplay,
+    // fetchDeviceDisplay,
 
     sendContentToDevice,
     stopCurrentContent,
