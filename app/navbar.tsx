@@ -7,8 +7,8 @@ import {
   Image,
   Modal,
   Pressable,
-  Alert,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
@@ -40,11 +40,10 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
   });
 
   const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  const isTablet = width >= 768 && width < 1024;
-  const isDesktop = width >= 1024;
 
   if (!loaded) return null;
 
@@ -63,20 +62,17 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: () => {
-            router.replace('/login');
-          }
-        },
-      ]
-    );
+    setProfileModalVisible(false);
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    router.replace('/login');
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
   };
 
   return (
@@ -128,8 +124,7 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
         >
           {!showBottomTabs && (
             <View style={styles.profileInfo}>
-              <Text style={styles.userName}>Alex Davidson</Text>
-              <Text style={styles.userRole}>Administrator</Text>
+              <Text style={styles.userName}>Administrator</Text>
             </View>
           )}
           <View style={styles.avatarPlaceholder}>
@@ -155,36 +150,53 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
                 <Text style={styles.modalAvatarInitials}>{getUserInitials()}</Text>
               </View>
               <View style={styles.modalUserInfo}>
-                <Text style={styles.modalUserName}>Alex Davidson</Text>
-                <Text style={styles.modalUserRole}>Administrator</Text>
+                <Text style={styles.modalUserName}>Administrator</Text>
               </View>
             </View>
 
             <View style={styles.modalDivider} />
 
-            <TouchableOpacity style={styles.modalItem} onPress={() => {
-              setProfileModalVisible(false);
-              handleNavigation('/profile');
-            }}>
-              <Ionicons name="person-outline" size={20} color={COLORS.text} />
-              <Text style={styles.modalItemText}>My Profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalItem} onPress={() => {
-              setProfileModalVisible(false);
-              Alert.alert('Account Settings', 'Coming soon!');
-            }}>
-              <Ionicons name="settings-outline" size={20} color={COLORS.text} />
-              <Text style={styles.modalItemText}>Account Settings</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalItem} onPress={() => {
-              setProfileModalVisible(false);
-              handleLogout();
-            }}>
+            <TouchableOpacity style={styles.modalItem} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
               <Text style={[styles.modalItemText, styles.logoutText]}>Logout</Text>
             </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showLogoutConfirm}
+        onRequestClose={cancelLogout}
+      >
+        <Pressable style={styles.modalOverlay} onPress={cancelLogout}>
+          <View style={styles.confirmModalContent}>
+            <View style={styles.confirmModalHeader}>
+              <Ionicons name="log-out-outline" size={24} color={COLORS.danger} />
+              <Text style={styles.confirmModalTitle}>Confirm Logout</Text>
+            </View>
+            
+            <Text style={styles.confirmModalMessage}>
+              Are you sure you want to logout?
+            </Text>
+
+            <View style={styles.confirmModalButtons}>
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.cancelButton]} 
+                onPress={cancelLogout}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.confirmButton, styles.logoutButton]} 
+                onPress={confirmLogout}
+              >
+                <Text style={styles.logoutButtonText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Pressable>
       </Modal>
@@ -207,12 +219,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
-   
   },
   navbarMobile: {
     paddingHorizontal: 16,
     paddingVertical: 7,
-     marginTop: 39,
+    marginTop: 39,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -281,11 +292,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.text,
   },
-  userRole: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
-    color: COLORS.textLight,
-  },
   avatarPlaceholder: {
     width: 36,
     height: 36,
@@ -302,14 +308,15 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: COLORS.surface,
     width: 280,
-    marginTop: 70,
-    marginRight: 20,
+    position: 'absolute',
+    top: 70,
+    right: 20,
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
@@ -319,8 +326,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   modalContentMobile: {
-    marginTop: 60,
-    marginRight: 16,
+    top: 60,
+    right: 16,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -349,12 +356,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
   },
-  modalUserRole: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
   modalDivider: {
     height: 1,
     backgroundColor: COLORS.border,
@@ -374,5 +375,64 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: COLORS.danger,
+  },
+  // Confirmation Modal Styles
+  confirmModalContent: {
+    backgroundColor: COLORS.surface,
+    width: 320,
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  confirmModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 18,
+    color: COLORS.text,
+  },
+  confirmModalMessage: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 15,
+    color: COLORS.textLight,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  confirmModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  logoutButton: {
+    backgroundColor: COLORS.danger,
+  },
+  cancelButtonText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  logoutButtonText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: COLORS.surface,
   },
 });

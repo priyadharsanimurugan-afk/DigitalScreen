@@ -4,109 +4,58 @@ import { StyleSheet } from "react-native";
 // ─── THEME ────────────────────────────────────────────────────────────────────
 
 export const C = {
-  primary: "#1E3A8A",
-  primaryLight: "#3B5FC0",
-  primaryGhost: "#EEF2FF",
-  accent: "#F59E0B",
-  bg: "#F0F4FF",
-  surface: "#FFFFFF",
-  surfaceAlt: "#F8FAFC",
-  text: "#0F172A",
-  textMid: "#334155",
-  textLight: "#64748B",
-  border: "#E2E8F0",
-  success: "#10B981",
-  successBg: "#DCFCE7",
-  danger: "#EF4444",
-  dangerBg: "#FEE2E2",
-  accentBg: "#FEF3C7",
-  live: "#EF4444",
+  // Blues
+  primary:       "#1E3A8A",
+  primaryLight:  "#3B5FC0",
+  primaryGhost:  "#EEF2FF",
+  primaryDeep:   "#0F2057",
+
+  // Browns
+  brown:         "#78350F",
+  brownMid:      "#A16207",
+  brownLight:    "#FEF3C7",
+  brownGhost:    "#FFFBEB",
+
+  // Backgrounds
+  bg:            "#F0F4FF",
+  surface:       "#FFFFFF",
+  surfaceAlt:    "#F8FAFC",
+  surfaceWarm:   "#FDFAF5",
+
+  // Text
+  text:          "#0F172A",
+  textMid:       "#334155",
+  textLight:     "#64748B",
+
+  // UI
+  border:        "#E2E8F0",
+  borderWarm:    "#E8DCC8",
+
+  // Status
+  success:       "#059669",
+  successBg:     "#D1FAE5",
+  danger:        "#DC2626",
+  dangerBg:      "#FEE2E2",
+  live:          "#DC2626",
+
+  // Accent (brown-gold)
+  accent:        "#D97706",
+  accentBg:      "#FEF3C7",
 } as const;
 
-// ─── BREAKPOINTS ──────────────────────────────────────────────────────────────
-
-export const BREAKPOINTS = {
-  mobile: 768,
-  tablet: 1024,
-  desktop: 1200,
-} as const;
+export const BREAKPOINTS = { mobile: 768, tablet: 1024, desktop: 1200 } as const;
 
 // ─── DROPDOWN STYLES ──────────────────────────────────────────────────────────
 
 export const dd = StyleSheet.create({
-  wrapper: { 
-    marginBottom: 14, 
-    zIndex: 9999,  // Increased z-index
-    position: 'relative',
-  },
   label: {
     fontSize: 10,
     fontFamily: "Poppins_600SemiBold",
     color: C.textLight,
-    letterSpacing: 0.8,
+    letterSpacing: 1,
     marginBottom: 6,
     textTransform: "uppercase",
   },
-  trigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: C.surfaceAlt,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    minHeight: 46,
-  },
-  triggerOpen: { borderColor: C.primary },
-  triggerText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: "Poppins_500Medium",
-    color: C.text,
-  },
-  triggerSub: {
-    fontSize: 11,
-    fontFamily: "Poppins_400Regular",
-    color: C.textLight,
-    marginTop: 1,
-  },
-  menu: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
-    marginTop: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 9999,  // Increased elevation for Android
-    zIndex: 9999,
-    // Remove overflow hidden if present
-  },
-  item: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  itemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  itemActive: { backgroundColor: C.primaryGhost },
-  itemText: { fontSize: 14, fontFamily: "Poppins_500Medium", color: C.textMid },
-  itemTextActive: { color: C.primary, fontFamily: "Poppins_600SemiBold" },
-  itemSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: C.textLight, marginTop: 1 },
-});
-
-// ─── IMAGE PICKER STYLES ──────────────────────────────────────────────────────
-
-export const mip = StyleSheet.create({
-  // Dropdown trigger
   trigger: {
     flexDirection: "row",
     alignItems: "center",
@@ -117,186 +66,39 @@ export const mip = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    minHeight: 50,
+    minHeight: 48,
   },
-  triggerOpen: {
-    borderColor: C.primary,
-    backgroundColor: C.primaryGhost,
-  },
-  triggerText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Poppins_500Medium",
-    color: C.text,
-  },
-  triggerPlaceholder: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Poppins_400Regular",
-    color: C.textLight,
-  },
-  countBadge: {
-    backgroundColor: C.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 99,
-    minWidth: 36,
-    alignItems: "center",
-  },
-  countText: {
-    fontSize: 11,
-    fontFamily: "Poppins_700Bold",
-    color: "#fff",
-  },
-
-  // Dropdown menu
-  dropMenu: {
+  triggerOpen: { borderColor: C.primary, backgroundColor: C.primaryGhost },
+  triggerText: { flex: 1, fontSize: 14, fontFamily: "Poppins_500Medium", color: C.text },
+  triggerSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: C.textLight, marginTop: 1 },
+  menu: {
     position: "absolute",
     top: "100%",
     left: 0,
     right: 0,
     backgroundColor: C.surface,
     borderWidth: 1.5,
-    borderColor: C.primary,
-    borderRadius: 14,
-    marginTop: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    borderColor: C.primaryLight + "66",
+    borderRadius: 12,
+    marginTop: 4,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
     shadowRadius: 16,
-    elevation: 9999,  // Maximum elevation
+    elevation: 9999,
     zIndex: 9999,
-    // REMOVE overflow: 'hidden' from here
   },
-  dropHeader: {
-    backgroundColor: C.primaryGhost,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  dropHeaderText: {
-    fontSize: 10,
-    fontFamily: "Poppins_600SemiBold",
-    color: C.primary,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  dropItem: {
+  item: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
-    backgroundColor: C.surface,
-  },
-  dropItemActive: {
-    backgroundColor: "#F0F5FF",
-  },
-  dropItemDisabled: {
-    opacity: 0.35,
-  },
-  dropThumb: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: C.border,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    position: "relative",
-  },
-  orderBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: C.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#fff",
-  },
-  orderBadgeText: {
-    fontSize: 9,
-    fontFamily: "Poppins_700Bold",
-    color: "#fff",
-  },
-  dropItemName: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Poppins_500Medium",
-    color: C.textMid,
-  },
-
-  // Done button
-  doneBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: C.primary,
     paddingVertical: 12,
-    margin: 10,
-    borderRadius: 10,
   },
-  doneBtnText: {
-    fontSize: 13,
-    fontFamily: "Poppins_700Bold",
-    color: "#fff",
-  },
-
-  // Pills below trigger
-  pillsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 10,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: C.primaryGhost,
-    borderWidth: 1,
-    borderColor: C.primaryLight + "55",
-    borderRadius: 99,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    maxWidth: 180,
-  },
-  pillThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    overflow: "hidden",
-    backgroundColor: C.border,
-  },
-  pillNum: {
-    fontSize: 10,
-    fontFamily: "Poppins_700Bold",
-    color: C.primary,
-  },
-  pillName: {
-    flex: 1,
-    fontSize: 11,
-    fontFamily: "Poppins_500Medium",
-    color: C.primary,
-  },
-
-  // Legacy grid (keep for compat)
-  grid: { gap: 8 },
-  chip: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    padding: 10, borderRadius: 10, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surfaceAlt,
-  },
-  chipActive: { borderColor: C.primary, backgroundColor: C.primaryGhost },
-  chipDisabled: { opacity: 0.4 },
-  thumb: { width: 34, height: 34, borderRadius: 8, backgroundColor: C.border, justifyContent: "center", alignItems: "center" },
-  orderNum: { fontFamily: "Poppins_700Bold", fontSize: 14, color: "#fff" },
-  name: { flex: 1, fontSize: 13, fontFamily: "Poppins_500Medium", color: C.textMid },
+  itemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
+  itemActive: { backgroundColor: C.primaryGhost },
+  itemText: { fontSize: 14, fontFamily: "Poppins_500Medium", color: C.textMid },
+  itemTextActive: { color: C.primary, fontFamily: "Poppins_600SemiBold" },
+  itemSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: C.textLight, marginTop: 1 },
 });
 
 // ─── STAT CARD STYLES ─────────────────────────────────────────────────────────
@@ -304,20 +106,18 @@ export const mip = StyleSheet.create({
 export const sc = StyleSheet.create({
   card: {
     flex: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 6,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowRadius: 8,
     elevation: 2,
   },
-  iconBox: {
-    width: 34, height: 34, borderRadius: 9, justifyContent: "center", alignItems: "center",
-  },
-  num: { fontSize: 22, fontFamily: "Poppins_700Bold" },
-  label: { fontSize: 10, fontFamily: "Poppins_400Regular" },
+  iconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  num: { fontSize: 24, fontFamily: "Poppins_700Bold" },
+  label: { fontSize: 10, fontFamily: "Poppins_500Medium", letterSpacing: 0.3 },
 });
 
 // ─── MAIN STYLES ──────────────────────────────────────────────────────────────
@@ -325,88 +125,80 @@ export const sc = StyleSheet.create({
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   scroll: { flex: 1 },
-  content: {
-    maxWidth: 1400,
-    alignSelf: "center",
-    width: "100%",
-  },
+  content: { maxWidth: 1400, alignSelf: "center", width: "100%" },
 
-  // ── Header
+  // ── Header ──────────────────────────────────────────────────────────────────
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 12,
+    paddingBottom: 4,
   },
-  headerLeft: { gap: 4 },
+  headerLeft: { gap: 3 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
   headerBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: C.primaryGhost,
+    backgroundColor: C.brownLight,
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 99,
     borderWidth: 1,
-    borderColor: C.primaryLight + "33",
+    borderColor: C.brownMid + "44",
   },
   headerBadgeText: {
     fontSize: 10,
     fontFamily: "Poppins_600SemiBold",
-    color: C.primary,
+    color: C.brownMid,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   pageTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontFamily: "Poppins_700Bold",
-    color: C.text,
+    color: C.primaryDeep,
     letterSpacing: -0.5,
   },
-  pageSubtitle: { fontSize: 13, fontFamily: "Poppins_400Regular", color: C.textLight, marginTop: 1 },
+  pageSubtitle: { fontSize: 12, fontFamily: "Poppins_400Regular", color: C.textLight },
   onlineStatus: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     backgroundColor: C.successBg,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 99,
   },
-  onlineDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: C.success,
-  },
+  onlineDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.success },
   onlineText: { fontSize: 11, fontFamily: "Poppins_600SemiBold", color: C.success },
 
-  // ── Stats
+  // ── Stats ────────────────────────────────────────────────────────────────────
   statsRow: { flexDirection: "row", flexWrap: "wrap" },
 
-  // ── Card base
+  // ── Card base ────────────────────────────────────────────────────────────────
   card: {
     backgroundColor: C.surface,
-    borderRadius: 18,
-    shadowColor: "#1E3A8A",
+    borderRadius: 20,
+    shadowColor: C.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowRadius: 12,
     elevation: 2,
   },
   cardTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 16,
     flexWrap: "wrap",
   },
-  cardTitle: { fontSize: 15, fontFamily: "Poppins_600SemiBold", color: C.text, flex: 1 },
+  cardTitle: { fontSize: 14, fontFamily: "Poppins_600SemiBold", color: C.text, flex: 1 },
   cardBadge: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Poppins_600SemiBold",
     color: C.textLight,
     backgroundColor: C.surfaceAlt,
@@ -419,34 +211,30 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 99,
+    borderWidth: 1,
+    borderColor: C.primaryLight + "33",
   },
-  cardBadgeBlueText: {
-    fontSize: 11,
-    fontFamily: "Poppins_600SemiBold",
-    color: C.primary,
-  },
+  cardBadgeBlueText: { fontSize: 10, fontFamily: "Poppins_600SemiBold", color: C.primary },
 
-  // ── Steps
+  // ── Steps bar ────────────────────────────────────────────────────────────────
   stepsRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.surface,
-    borderRadius: 14,
-    paddingHorizontal: 18,
+    borderRadius: 16,
+    paddingHorizontal: 20,
     paddingVertical: 14,
-    shadowColor: "#1E3A8A",
+    shadowColor: C.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 1,
-    flexWrap: "wrap",
-    gap: 4,
   },
   stepBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
   stepNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: C.border,
     justifyContent: "center",
     alignItems: "center",
@@ -455,7 +243,7 @@ export const styles = StyleSheet.create({
   stepNumText: { fontSize: 11, fontFamily: "Poppins_700Bold", color: C.textLight },
   stepLabel: { fontSize: 12, fontFamily: "Poppins_500Medium", color: C.textLight },
   stepLabelDone: { color: C.text, fontFamily: "Poppins_600SemiBold" },
-  stepLine: { flex: 1, height: 1.5, backgroundColor: C.border, minWidth: 16 },
+  stepLine: { flex: 1, height: 1.5, backgroundColor: C.border, minWidth: 20, marginHorizontal: 4 },
   stepNumSmall: {
     width: 20,
     height: 20,
@@ -466,31 +254,32 @@ export const styles = StyleSheet.create({
   },
   stepNumSmallText: { fontSize: 10, fontFamily: "Poppins_700Bold", color: "#fff" },
 
-  // ── Live displays
+  // ── Live displays ─────────────────────────────────────────────────────────────
   livePulse: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.live },
   liveBadge: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: C.dangerBg,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 99,
   },
   liveBadgeText: { fontSize: 10, fontFamily: "Poppins_700Bold", color: C.live, letterSpacing: 0.5 },
+
+  // Live card — full redesign
   liveCard: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: C.surfaceAlt,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: C.border,
-    flexWrap: "wrap",
-    gap: 8,
+    gap: 12,
   },
-  liveCardLeft: { flex: 1, minWidth: 150 },
-  liveDeviceName: { fontSize: 13, fontFamily: "Poppins_700Bold", color: C.text },
-  liveTitle: { fontSize: 12, fontFamily: "Poppins_400Regular", color: C.textMid, marginTop: 2 },
-  liveTagRow: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  liveCardLeft: { flex: 1 },
+  liveDeviceName: { fontSize: 13, fontFamily: "Poppins_700Bold", color: C.primaryDeep, marginBottom: 2 },
+  liveTitle: { fontSize: 12, fontFamily: "Poppins_500Medium", color: C.textMid, marginBottom: 8 },
+  liveTagRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginBottom: 10 },
   liveTag: {
     flexDirection: "row",
     alignItems: "center",
@@ -500,30 +289,100 @@ export const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 99,
   },
-  liveTagText: { fontSize: 10, fontFamily: "Poppins_500Medium", color: C.primary },
+  liveTagText: { fontSize: 10, fontFamily: "Poppins_600SemiBold", color: C.primary },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
+
+  // Image thumbnails row inside live card
+  liveImagePreview: { flexDirection: "row", alignItems: "center", gap: 5 },
+  liveThumbWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  liveThumb: { width: "100%", height: "100%" },
+  liveThumbPlaceholder: { justifyContent: "center", alignItems: "center", backgroundColor: C.surfaceAlt },
+  liveThumbMore: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: C.primaryGhost,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  liveThumbMoreText: { fontSize: 10, fontFamily: "Poppins_700Bold", color: C.primary },
+
+  // Live card action buttons (vertical stack on right)
+  liveCardActions: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 6,
+    minWidth: 72,
+  },
+  editLiveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: C.primaryGhost,
+    borderWidth: 1,
+    borderColor: C.primaryLight + "44",
+  },
+  editLiveBtnText: { fontSize: 11, fontFamily: "Poppins_600SemiBold", color: C.primary },
   stopBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: C.danger,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     borderRadius: 8,
+    backgroundColor: C.danger,
   },
-  stopBtnText: { fontSize: 12, fontFamily: "Poppins_700Bold", color: "#fff" },
+  stopBtnText: { fontSize: 11, fontFamily: "Poppins_700Bold", color: "#fff" },
 
-  // ── Main grid
+  // ── Edit modal helpers ────────────────────────────────────────────────────────
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: C.primary,
+    backgroundColor: C.primaryGhost,
+  },
+  editButtonText: { fontSize: 13, fontFamily: "Poppins_600SemiBold", color: C.primary },
+  layoutPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    backgroundColor: C.successBg,
+    borderRadius: 10,
+    padding: 10,
+  },
+  layoutPreviewText: { fontFamily: "Poppins_600SemiBold", fontSize: 13, color: C.success },
+  layoutPreviewSub: { fontFamily: "Poppins_400Regular", fontSize: 11, color: C.success, marginLeft: "auto" },
+
+  // ── Main grid ─────────────────────────────────────────────────────────────────
   mainGrid: {},
   leftCol: {},
   rightCol: {},
 
-  // ── Form fields
+  // ── Form fields ───────────────────────────────────────────────────────────────
   fieldLabel: {
     fontSize: 10,
     fontFamily: "Poppins_600SemiBold",
     color: C.textLight,
-    letterSpacing: 0.8,
+    letterSpacing: 1,
     marginBottom: 6,
     textTransform: "uppercase",
   },
@@ -531,147 +390,80 @@ export const styles = StyleSheet.create({
     backgroundColor: C.surfaceAlt,
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     fontSize: 14,
     fontFamily: "Poppins_400Regular",
     color: C.text,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  textArea: { minHeight: 72 },
-  layoutHint: {
-    fontSize: 11,
-    fontFamily: "Poppins_400Regular",
-    color: C.textLight,
-    marginBottom: 12,
-    lineHeight: 17,
-  },
-
-  // ── Ratio chips
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  ratioChip: {
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: C.border,
-    backgroundColor: C.surfaceAlt,
-    minWidth: 72,
-    gap: 6,
   },
-  ratioChipActive: { borderColor: C.primary, backgroundColor: C.primaryGhost },
-  ratioVisual: { borderWidth: 2, borderRadius: 3 },
-  chipValue: { fontSize: 13, fontFamily: "Poppins_700Bold", color: C.textMid },
-  chipValueActive: { color: C.primary },
-  chipLabel: { fontSize: 9, fontFamily: "Poppins_400Regular", color: C.textLight, textAlign: "center" },
-  chipLabelActive: { color: C.primaryLight },
+  textArea: { minHeight: 80 },
 
-  // ── Layout cards
-  layoutRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
-  layoutCard: {
-    width: 100,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    backgroundColor: C.surfaceAlt,
-    borderWidth: 1.5,
-    borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  layoutCardActive: {
-    backgroundColor: C.primary,
-    borderColor: C.primary,
-    shadowColor: C.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  layoutCardTitle: {
-    fontSize: 13,
-    fontFamily: "Poppins_600SemiBold",
-    color: C.textMid,
-  },
-  layoutCardSub: {
-    fontSize: 10,
-    fontFamily: "Poppins_400Regular",
-    color: C.textLight,
-  },
-
-  // ── Device preview
+  // ── Device card ────────────────────────────────────────────────────────────────
   devicePreview: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: C.primaryGhost,
+    backgroundColor: C.brownGhost,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: C.primaryLight + "33",
-    marginTop: 4,
+    borderColor: C.brownMid + "33",
+    marginTop: 12,
   },
   devicePreviewIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: "#DBEAFE",
+    width: 44,
+    height: 44,
+    borderRadius: 11,
+    backgroundColor: C.brownLight,
     justifyContent: "center",
     alignItems: "center",
   },
-  devicePreviewName: { fontSize: 14, fontFamily: "Poppins_600SemiBold", color: C.primary },
+  devicePreviewName: { fontSize: 14, fontFamily: "Poppins_600SemiBold", color: C.brown },
   devicePreviewSub: { fontSize: 11, fontFamily: "Poppins_400Regular", color: C.textLight },
-  devicePreviewId: { fontSize: 10, fontFamily: "Poppins_400Regular", color: C.textLight },
+  devicePreviewId: { fontSize: 10, fontFamily: "Poppins_400Regular", color: C.textLight, marginTop: 1 },
 
-  // ── Live preview card
+  // ── Preview badge ─────────────────────────────────────────────────────────────
   previewLiveBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#FEE2E2",
+    backgroundColor: C.brownLight,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 99,
   },
-  previewLiveText: { fontSize: 9, fontFamily: "Poppins_700Bold", color: C.live, letterSpacing: 0.5 },
+  previewLiveText: { fontSize: 9, fontFamily: "Poppins_700Bold", color: C.brownMid, letterSpacing: 0.5 },
 
-  // ── Deploy card
+  // ── Deploy card ───────────────────────────────────────────────────────────────
   deployCard: {
     borderWidth: 2,
     borderColor: C.primary,
     shadowColor: C.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 5,
   },
-  deployHeader: { marginBottom: 14 },
-  deployHeading: { fontSize: 17, fontFamily: "Poppins_700Bold", color: C.text, marginBottom: 3 },
+  deployHeader: { marginBottom: 16 },
+  deployHeading: { fontSize: 16, fontFamily: "Poppins_700Bold", color: C.primaryDeep, marginBottom: 3 },
   deploySub: { fontSize: 12, fontFamily: "Poppins_400Regular", color: C.textLight },
-  summaryList: { gap: 7, marginBottom: 18 },
+  summaryList: { gap: 6, marginBottom: 18 },
   summaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     backgroundColor: C.surfaceAlt,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 9,
-    flexWrap: "wrap",
+    paddingVertical: 9,
+    borderRadius: 10,
   },
-  summaryLabel: {
-    fontSize: 11,
-    fontFamily: "Poppins_500Medium",
-    color: C.textLight,
-    width: 50,
-  },
+  summaryLabel: { fontSize: 11, fontFamily: "Poppins_500Medium", color: C.textLight, width: 52 },
   summaryValue: { flex: 1, fontSize: 12, fontFamily: "Poppins_600SemiBold", color: C.text },
   deployBtn: {
     backgroundColor: C.primary,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 15,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -682,78 +474,48 @@ export const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  deployBtnText: { color: "#fff", fontFamily: "Poppins_700Bold", fontSize: 14 },
+  deployBtnText: { color: "#fff", fontFamily: "Poppins_700Bold", fontSize: 15 },
 
-  // ── Recent uploads grid (notice board style)
-  recentGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  // ── Recent uploads ────────────────────────────────────────────────────────────
+  recentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   recentCard: {
-    width: "31%",
-    borderRadius: 10,
+    width: "30.5%",
+    borderRadius: 12,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.surfaceAlt,
-    position: "relative",
   },
-  recentThumb: {
-    width: "100%",
-    height: 68,
-    backgroundColor: C.border,
-  },
-  recentPin: {
-    position: "absolute",
-    top: 5,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  recentInfo: { padding: 6 },
-  recentName: {
-    fontSize: 10,
-    fontFamily: "Poppins_600SemiBold",
-    color: C.text,
-  },
-  recentDate: {
-    fontSize: 9,
-    fontFamily: "Poppins_400Regular",
-    color: C.textLight,
-    marginTop: 1,
-  },
+  recentThumb: { width: "100%", height: 72, backgroundColor: C.border },
+  recentPin: { position: "absolute", top: 6, left: 0, right: 0, alignItems: "center" },
+  recentInfo: { padding: 7 },
+  recentName: { fontSize: 10, fontFamily: "Poppins_600SemiBold", color: C.text },
+  recentDate: { fontSize: 9, fontFamily: "Poppins_400Regular", color: C.textLight, marginTop: 1 },
 
-  // ── Empty
   emptyHint: {
     fontSize: 13,
     fontFamily: "Poppins_400Regular",
     color: C.textLight,
     textAlign: "center",
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
 
-  // ── Modal
+  // ── Modal ─────────────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15,23,42,0.55)",
+    backgroundColor: "rgba(15,23,42,0.6)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalBox: {
     backgroundColor: C.surface,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 24,
   },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  modalTitle: { fontSize: 18, fontFamily: "Poppins_700Bold", color: C.text },
-  modalSub: { fontSize: 13, fontFamily: "Poppins_400Regular", color: C.textLight, marginBottom: 16 },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 },
+  modalTitle: { fontSize: 18, fontFamily: "Poppins_700Bold", color: C.primaryDeep },
+  modalSub: { fontSize: 13, fontFamily: "Poppins_400Regular", color: C.textLight, marginBottom: 18 },
   modalSummary: {
     backgroundColor: C.surfaceAlt,
     borderRadius: 12,
@@ -770,10 +532,10 @@ export const styles = StyleSheet.create({
   },
   modalRowLabel: { fontSize: 12, fontFamily: "Poppins_500Medium", color: C.textLight, minWidth: 90 },
   modalRowValue: { flex: 1, fontSize: 12, fontFamily: "Poppins_600SemiBold", color: C.text, textAlign: "right" },
-  modalActions: { flexDirection: "row" },
+  modalActions: { flexDirection: "row", gap: 10 },
   modalCancelBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: C.border,
@@ -783,7 +545,7 @@ export const styles = StyleSheet.create({
   modalCancelText: { fontFamily: "Poppins_600SemiBold", color: C.textLight, fontSize: 14 },
   modalConfirmBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 10,
     backgroundColor: C.primary,
     flexDirection: "row",
@@ -792,4 +554,22 @@ export const styles = StyleSheet.create({
     gap: 6,
   },
   modalConfirmText: { fontFamily: "Poppins_700Bold", color: "#fff", fontSize: 14 },
+
+  // Legacy compat
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  layoutHint: { fontSize: 11, fontFamily: "Poppins_400Regular", color: C.textLight, marginBottom: 12 },
+  layoutRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  layoutCard: {
+    width: 100, paddingVertical: 14, paddingHorizontal: 8,
+    borderRadius: 14, backgroundColor: C.surfaceAlt,
+    borderWidth: 1.5, borderColor: C.border,
+    alignItems: "center", justifyContent: "center", gap: 6,
+  },
+  layoutCardActive: {
+    backgroundColor: C.primary, borderColor: C.primary,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+  },
+  layoutCardTitle: { fontSize: 13, fontFamily: "Poppins_600SemiBold", color: C.textMid },
+  layoutCardSub: { fontSize: 10, fontFamily: "Poppins_400Regular", color: C.textLight },
 });

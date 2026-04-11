@@ -17,7 +17,6 @@ export interface LatestLiveContent {
   title: string;
   description: string;
   imageId: number;
-  screenRatio: string;
   screenLayout: string;
   status: string;
   contentId: number;

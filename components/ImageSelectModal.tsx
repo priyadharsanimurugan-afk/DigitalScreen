@@ -55,7 +55,7 @@ export const ImageSelectModal = ({
             <Image
               source={{ uri: item.imageurl }}
               style={styles.image}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           ) : (
             <View style={styles.placeholder}>

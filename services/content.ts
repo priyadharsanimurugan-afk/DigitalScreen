@@ -1,12 +1,9 @@
 // services/content.ts
+import { LayoutConfig } from "@/constants/layout";
 import api from "./api";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
-export interface ScreenRatioItem {
-  value: string;
-  label: string;
-}
 
 export interface ScreenLayoutItem {
   value: string;
@@ -16,6 +13,7 @@ export interface ScreenLayoutItem {
 export interface ImageItem {
   imageId: number;
   imageName: string;
+  imageurl?: string;
 }
 
 export interface DeviceLUTItem {
@@ -26,9 +24,9 @@ export interface DeviceLUTItem {
 
 export interface ContentLUT {
   imageList: ImageItem[];
-  screenRatio: ScreenRatioItem[];
-  screenLayout: ScreenLayoutItem[];
+  screenLayouts: LayoutConfig[]; 
   deviceList: DeviceLUTItem[];
+  imageUrl: string;
 }
 
 // Multi-image support: imageIds is an array
@@ -36,7 +34,6 @@ export interface SendContentRequest {
   title: string;
   description: string;
   imageIds: number[];   // array for multi-select
-  screenRatio: string;
   screenLayout: string;
   deviceId: string;
 }
@@ -47,6 +44,7 @@ export interface ApiResponse {
 }
 
 export interface LiveDisplay {
+  images: any;
   contentId: number;
   deviceId: string;
   deviceName: string;
@@ -54,7 +52,6 @@ export interface LiveDisplay {
   title: string;
   description?: string;
   imageId: number;
-  screenRatio: string;
   screenLayout: string;
   status: string;
 }
@@ -77,11 +74,10 @@ export interface DeviceDisplay {
   id: number;
   title: string;
   description: string;
-  screenRatio: string;
   screenLayout: string;
   images: {
     imageId: number;
-    imageBase64: string;
+    imageurl: string;
     mimeType: string;
     sortOrder: number;
   }[];

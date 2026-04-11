@@ -15,13 +15,12 @@ import {
 export const useContent = () => {
   const [loading, setLoading] = useState(false);
 
-  const [lutData, setLutData] = useState<ContentLUT>({
-    imageList: [],
-    screenRatio: [],
-    screenLayout: [],
-    deviceList: [],
-  });
-
+ const [lutData, setLutData] = useState<ContentLUT>({
+  imageList: [],
+  screenLayouts: [],
+  deviceList: [],
+  imageUrl: "",   // ← add whatever the type requires
+});
   // ✅ NEW
   const [deviceDisplay, setDeviceDisplay] = useState<DeviceDisplay | null>(null);
 
@@ -48,19 +47,27 @@ export const useContent = () => {
   };
 
   // ================= LUT =================
-  const fetchLUTData = async () => {
-    try {
-      setLoading(true);
-      const data = await getContentLUT();
-      setLutData(data);
-      return data;
-    } catch (error) {
-      handleError(error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
+// In useContent hook, update fetchLUTData:
+const fetchLUTData = async () => {
+  try {
+    setLoading(true);
+    const data = await getContentLUT();
+
+    setLutData({
+      imageList: data.imageList || [],
+      screenLayouts: data.screenLayouts || [],  // ✅ FIX HERE
+      deviceList: data.deviceList || [],
+      imageUrl: data.imageUrl || "",
+    });
+
+    return data;
+  } catch (error) {
+    handleError(error);
+    return null;
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ================= DEVICE DISPLAY (TV) =================
   const fetchDeviceDisplay = async () => {
@@ -141,16 +148,10 @@ export const useContent = () => {
   };
 
   // ================= LABEL HELPERS =================
-  const getScreenRatioLabel = useCallback(
-    (value: string) =>
-      lutData.screenRatio.find((r) => r.value === value)?.label || value,
-    [lutData.screenRatio]
-  );
-
   const getScreenLayoutLabel = useCallback(
     (value: string) =>
-      lutData.screenLayout.find((l) => l.value === value)?.label || value,
-    [lutData.screenLayout]
+      lutData.screenLayouts.find((l) => l.value === value)?.label || value,
+    [lutData.screenLayouts]
   );
 
   // ================= INIT =================
@@ -176,7 +177,6 @@ export const useContent = () => {
     stopCurrentContent,
     refreshAllData,
 
-    getScreenRatioLabel,
     getScreenLayoutLabel,
   };
 };
