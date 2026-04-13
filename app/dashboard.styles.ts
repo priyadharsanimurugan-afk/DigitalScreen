@@ -37,6 +37,7 @@ export const C = {
   danger:        "#DC2626",
   dangerBg:      "#FEE2E2",
   live:          "#DC2626",
+  warning:       "#F59E0B",
 
   // Accent (brown-gold)
   accent:        "#D97706",

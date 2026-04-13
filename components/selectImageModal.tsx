@@ -1,137 +1,286 @@
-// components/signage/ImageSelectModal.tsx
+// components/selectImageModal.tsx
 import React from "react";
 import {
-  Modal, View, Text, TouchableOpacity,
-  ScrollView, Image, Alert, Dimensions,
+  View,
+  Text,
+  TouchableOpacity,
+  Modal,
+  Image,
+  FlatList,
+  StyleSheet,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/app/dashboard.styles";
-import { ImageItem } from "../components/layoutGrid";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  options: ImageItem[];
+  options: { imageId: number; imageName: string; imageurl?: string }[];
   selected: number[];
   onToggle: (id: number) => void;
-  maxSelect?: number;
+  maxSelect: number;
 }
 
-export const ImageSelectModal = ({ visible, onClose, options, selected, onToggle, maxSelect = 6 }: Props) => {
-  const screenW = Dimensions.get("window").width;
-  const numCols = screenW > 600 ? 3 : 2;
-  const thumbSize = (screenW - 48) / numCols;
+export const ImageSelectModal = ({
+  visible,
+  onClose,
+  options,
+  selected,
+  onToggle,
+  maxSelect,
+}: Props) => {
+  const { width, height } = useWindowDimensions();
+  const modalW = Math.min(width - 32, 640);
+  // 3 columns with 16px padding each side and 8px gaps
+  const colSize = (modalW - 32 - 16) / 3;
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
+  const renderItem = ({ item }: any) => {
+    const isSelected = selected.includes(item.imageId);
+    const orderIndex = selected.indexOf(item.imageId);
+    const atMax = !isSelected && selected.length >= maxSelect;
 
-        {/* Header */}
-        <View style={{
-          flexDirection: "row", alignItems: "center",
-          paddingHorizontal: 16, paddingTop: 56, paddingBottom: 14,
-          borderBottomWidth: 1, borderBottomColor: C.border,
-          backgroundColor: C.surface, gap: 10,
-        }}>
-          <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-            <Ionicons name="close" size={22} color={C.text} />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 16, color: C.text }}>
-              Select Images
-            </Text>
-            <Text style={{ fontFamily: "Poppins_400Regular", fontSize: 12, color: C.textLight }}>
-              Tap in display order — up to {maxSelect}
-            </Text>
-          </View>
-          <View style={{ backgroundColor: C.primaryGhost, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99 }}>
-            <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 13, color: C.primary }}>
-              {selected.length}/{maxSelect}
-            </Text>
-          </View>
+    return (
+      <TouchableOpacity
+        onPress={() => {
+          if (!atMax) onToggle(item.imageId);
+        }}
+        activeOpacity={0.85}
+        style={[
+          s.imageCard,
+          {
+            width: colSize,
+            opacity: atMax ? 0.45 : 1,
+            borderColor: isSelected ? C.primary : "#E2E8F0",
+          },
+        ]}
+      >
+        <View style={[s.imageContainer, { height: colSize * 0.75 }]}>
+          {item.imageurl ? (
+            <Image
+              source={{ uri: item.imageurl }}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={s.placeholder}>
+              <Ionicons name="image-outline" size={32} color="#94A3B8" />
+            </View>
+          )}
         </View>
 
-        {/* Grid */}
-        <ScrollView
-          contentContainerStyle={{ padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 10 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {options.map((img) => {
-            const isSelected = selected.includes(img.imageId);
-            const orderIndex = selected.indexOf(img.imageId);
-            const atMax = !isSelected && selected.length >= maxSelect;
+        {isSelected && <View style={s.selectedOverlay} />}
+        {isSelected && (
+          <View style={s.checkIcon}>
+            <Ionicons name="checkmark-circle" size={22} color={C.primary} />
+          </View>
+        )}
+        {isSelected && (
+          <View style={s.orderBadge}>
+            <Text style={s.orderText}>{orderIndex + 1}</Text>
+          </View>
+        )}
 
-            return (
-              <TouchableOpacity
-                key={img.imageId}
-                onPress={() => { if (!atMax) onToggle(img.imageId); }}
-                activeOpacity={0.8}
+        <Text style={s.imageName} numberOfLines={1}>
+          {item.imageName}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    // transparent + justifyContent center = centered modal, NOT bottom sheet
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={s.overlay}>
+        <View style={[s.modalBox, { width: modalW, maxHeight: height * 0.85 }]}>
+          {/* Header */}
+          <View style={s.header}>
+            <View>
+              <Text style={s.headerTitle}>Select Images</Text>
+              <Text style={s.headerSub}>
+                {selected.length}/{maxSelect} selected
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View
                 style={{
-                  width: thumbSize, borderRadius: 10, overflow: "hidden",
-                  borderWidth: isSelected ? 2.5 : 1,
-                  borderColor: isSelected ? C.primary : C.border,
-                  opacity: atMax ? 0.4 : 1,
-                  backgroundColor: C.surface,
+                  backgroundColor: C.primaryGhost,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 99,
                 }}
               >
-                {img.imageurl ? (
-                  <Image source={{ uri: img.imageurl }} style={{ width: "100%", height: thumbSize }} resizeMode="contain" />
-                ) : (
-                  <View style={{ width: "100%", height: thumbSize, justifyContent: "center", alignItems: "center", backgroundColor: C.surfaceAlt }}>
-                    <Ionicons name="image-outline" size={28} color={C.textLight} />
-                  </View>
-                )}
-
-                {isSelected && (
-                  <View style={{
-                    position: "absolute", top: 6, left: 6,
-                    backgroundColor: C.primary, borderRadius: 99,
-                    width: 22, height: 22, justifyContent: "center", alignItems: "center",
-                  }}>
-                    <Text style={{ fontSize: 11, fontFamily: "Poppins_700Bold", color: "#fff" }}>
-                      {orderIndex + 1}
-                    </Text>
-                  </View>
-                )}
-                {isSelected && (
-                  <View style={{ position: "absolute", top: 6, right: 6, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 99 }}>
-                    <Ionicons name="checkmark-circle" size={20} color={C.primary} />
-                  </View>
-                )}
-
-                <View style={{ paddingHorizontal: 8, paddingVertical: 6, backgroundColor: C.surface }}>
-                  <Text style={{ fontFamily: "Poppins_500Medium", fontSize: 11, color: C.text }} numberOfLines={1}>
-                    {img.imageName}
-                  </Text>
-                </View>
+                <Text
+                  style={{
+                    fontFamily: "Poppins_600SemiBold",
+                    fontSize: 12,
+                    color: C.primary,
+                  }}
+                >
+                  {selected.length}/{maxSelect}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={s.closeBtn}>
+                <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            </View>
+          </View>
 
-        {/* Done */}
-        <View style={{
-          paddingHorizontal: 16, paddingBottom: 34, paddingTop: 12,
-          backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border,
-        }}>
-          <TouchableOpacity
-            style={{
-              backgroundColor: C.primary, borderRadius: 12, paddingVertical: 14,
-              alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8,
-              opacity: selected.length === 0 ? 0.5 : 1,
-            }}
-            onPress={() => {
-              if (selected.length === 0) { Alert.alert("Select at least one image"); return; }
-              onClose();
-            }}
-          >
-            <Ionicons name="checkmark-done" size={18} color="#fff" />
-            <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 15, color: "#fff" }}>
-              Done — {selected.length} selected
-            </Text>
-          </TouchableOpacity>
+          {/* Grid */}
+          <FlatList
+            data={options}
+            keyExtractor={(item) => String(item.imageId)}
+            renderItem={renderItem}
+            numColumns={3}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 16, gap: 8 }}
+            columnWrapperStyle={{ gap: 8, justifyContent: "flex-start" }}
+          />
+
+          {/* Footer */}
+          <View style={s.footer}>
+            <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: "Poppins_600SemiBold",
+                  color: "#6B7280",
+                }}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onClose}
+              style={[
+                s.doneBtn,
+                { opacity: selected.length === 0 ? 0.5 : 1 },
+              ]}
+            >
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={s.doneText}>Done ({selected.length})</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
   );
 };
+
+const s = StyleSheet.create({
+  // centered overlay — NOT bottom-aligned
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
+  headerSub: { fontSize: 13, color: "#64748B", marginTop: 2 },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 99,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imageCard: {
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 2.5,
+    marginBottom: 0,
+  },
+  imageContainer: {
+    width: "100%",
+    backgroundColor: "#F0F4F8",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  placeholder: { flex: 1, justifyContent: "center", alignItems: "center" },
+  selectedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(59,130,246,0.12)",
+  },
+  checkIcon: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "white",
+    borderRadius: 99,
+  },
+  orderBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: C.primary,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "white",
+  },
+  orderText: { color: "white", fontSize: 11, fontWeight: "bold" },
+  imageName: {
+    fontSize: 11,
+    textAlign: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 4,
+    color: "#334155",
+    fontWeight: "500",
+  },
+  footer: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  doneBtn: {
+    flex: 2,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: C.primary,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  doneText: { color: "white", fontSize: 15, fontWeight: "700" },
+});

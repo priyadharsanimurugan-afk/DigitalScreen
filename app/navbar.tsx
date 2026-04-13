@@ -13,6 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { useRouter, usePathname } from 'expo-router';
+import { clearTokens } from '@/services/api';
+import { notifyAuthChange } from '@/utils/authEvents';
 
 const COLORS = {
   primary: '#1E3A8A',
@@ -66,10 +68,19 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
     setShowLogoutConfirm(true);
   };
 
-  const confirmLogout = () => {
-    setShowLogoutConfirm(false);
-    router.replace('/login');
-  };
+const confirmLogout = async () => {
+  setShowLogoutConfirm(false);
+
+  // 🔥 1. Clear tokens
+  await clearTokens();
+
+  // 🔥 2. Notify layout
+  notifyAuthChange();
+
+  // 🔥 3. Go to login
+  router.replace("/login");
+};
+
 
   const cancelLogout = () => {
     setShowLogoutConfirm(false);

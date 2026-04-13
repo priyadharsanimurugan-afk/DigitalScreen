@@ -10,49 +10,21 @@ import {
 } from "@expo-google-fonts/poppins";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import Toast from "react-native-toast-message";
 
 import ResponsiveLayout from "@/components/responsiveLayout";
 import { useImages } from "@/hooks/useMedia";
 import { ImageItem } from "@/services/images";
+
 import {
   COLORS, FONTS,
   screen, header, search, stats, grid,
   pagination, loading as loadingStyle, empty,
-  toast as toastStyle, dialog as dialogStyle, modalStyles,
+  dialog as dialogStyle, modalStyles,
 } from "./media.styles";
+import { toastConfig } from "@/constants/toastConfig";
 
 const PAGE_SIZE = 12;
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function ToastList({
-  toasts,
-  onDismiss,
-}: {
-  toasts: { id: number; type: "success" | "error"; message: string }[];
-  onDismiss: (id: number) => void;
-}) {
-  if (!toasts.length) return null;
-  return (
-    <View style={toastStyle.container} pointerEvents="box-none">
-      {toasts.map((t) => (
-        <View
-          key={t.id}
-          style={[toastStyle.box, t.type === "success" ? toastStyle.success : toastStyle.error]}
-        >
-          <Ionicons
-            name={t.type === "success" ? "checkmark-circle" : "alert-circle"}
-            size={20}
-            color="#fff"
-          />
-          <Text style={toastStyle.msg}>{t.message}</Text>
-          <TouchableOpacity onPress={() => onDismiss(t.id)}>
-            <Ionicons name="close" size={16} color="rgba(255,255,255,0.8)" />
-          </TouchableOpacity>
-        </View>
-      ))}
-    </View>
-  );
-}
 
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
 function ConfirmDialog({
@@ -135,10 +107,6 @@ function FullscreenImageModal({
             onLoad={() => setImgLoaded(true)}
           />
         </TouchableOpacity>
-        <TouchableOpacity style={modalStyles.downloadBtn} onPress={() => window.open(imageUrl, "_blank")}>
-          <Ionicons name="download-outline" size={22} color={COLORS.white} />
-          <Text style={modalStyles.downloadText}>View Original</Text>
-        </TouchableOpacity>
       </View>
     </Modal>
   );
@@ -156,6 +124,19 @@ function MediaCard({
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+
+  const handleImageError = () => {
+    if (retryCount < maxRetries) {
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        setImgError(false);
+      }, 1000 * (retryCount + 1));
+    } else {
+      setImgError(true);
+    }
+  };
 
   const dateStr = item.createdAt
     ? new Date(item.createdAt).toLocaleDateString("en-GB", {
@@ -187,11 +168,12 @@ function MediaCard({
           </View>
         ) : (
           <Image
+            key={`${item.id}-${retryCount}`}
             source={{ uri: item.imageUrl }}
             style={[grid.thumb, !imgLoaded && { position: "absolute", opacity: 0 }]}
             resizeMode="cover"
             onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
+            onError={handleImageError}
           />
         )}
       </TouchableOpacity>
@@ -321,8 +303,7 @@ export default function MediaScreen() {
     Poppins_700Bold,
   });
 
-  const { images, loading, toasts, dismissToast, upload, fetchImages, removeImage } =
-    useImages();
+  const { images, loading, upload, fetchImages, removeImage } = useImages();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -354,7 +335,15 @@ export default function MediaScreen() {
       input.accept = "image/*";
       input.onchange = async (e: any) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+        if (!file) {
+          Toast.show({
+            type: 'error',
+            text1: 'No File Selected',
+            text2: 'Please select an image file',
+            visibilityTime: 2000,
+          });
+          return;
+        }
         await upload(file, file.name.replace(/\.[^/.]+$/, ""));
       };
       input.click();
@@ -362,7 +351,15 @@ export default function MediaScreen() {
     }
 
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
+    if (!perm.granted) {
+      Toast.show({
+        type: 'error',
+        text1: 'Permission Required',
+        text2: 'Please grant media library access',
+        visibilityTime: 2000,
+      });
+      return;
+    }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -401,7 +398,7 @@ export default function MediaScreen() {
               </View>
               <Text style={header.sub}>Manage and organize your image assets.</Text>
 
-              {/* Search + Stats in one row - responsive */}
+              {/* Search + Stats */}
               <View style={search.container}>
                 <View style={search.bar}>
                   <Ionicons name="search-outline" size={18} color={COLORS.textLight} />
@@ -502,7 +499,8 @@ export default function MediaScreen() {
             onClose={handleCloseFullscreen}
           />
 
-          <ToastList toasts={toasts} onDismiss={dismissToast} />
+          {/* Global Toast */}
+          <Toast config={toastConfig} />
         </View>
       </SafeAreaView>
     </ResponsiveLayout>

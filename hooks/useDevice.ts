@@ -1,6 +1,5 @@
 // hooks/useDevices.ts
 import { useState, useEffect, useCallback } from "react";
-import { Alert } from "react-native";
 import {
   createDevice,
   getDevices,
@@ -23,29 +22,42 @@ export const useDevices = () => {
     onlineCount: 0,
     offlineCount: 0,
   });
+  const [error, setError] = useState<string | null>(null);
 
   //
-  // 🔥 COMMON ERROR HANDLER
+  // 🔥 COMMON ERROR HANDLER (No Alerts)
   //
   const handleError = (error: any) => {
     const apiError = error?.response?.data;
 
     let message = "Something went wrong";
+    let errors = null;
 
     if (apiError?.errors) {
-      return {
-        success: false,
-        errors: apiError.errors,
-        message: "Validation failed",
-      };
+      errors = apiError.errors;
+      message = "Validation failed";
     } else if (apiError?.message) {
       message = apiError.message;
     } else if (typeof apiError === "string") {
       message = apiError;
+    } else if (error?.message) {
+      message = error.message;
     }
 
-    Alert.alert("Error", message);
-    return { success: false, message };
+    setError(message);
+    
+    return {
+      success: false,
+      message,
+      errors,
+    };
+  };
+
+  //
+  // Clear error
+  //
+  const clearError = () => {
+    setError(null);
   };
 
   //
@@ -54,11 +66,17 @@ export const useDevices = () => {
   const addDevice = async (data: CreateDeviceRequest) => {
     try {
       setLoading(true);
-      await createDevice(data);
-      await fetchDevices();
+      setError(null);
+     const newDevice = await createDevice(data);
+
+setDevices(prev => [newDevice, ...prev]); // 🔥 instant update
+await fetchStatusSummary();
+
       await fetchStatusSummary();
-      Alert.alert("Success", "Device created successfully");
-      return { success: true };
+      return { 
+        success: true, 
+        message: "Device created successfully" 
+      };
     } catch (error: any) {
       return handleError(error);
     } finally {
@@ -72,12 +90,16 @@ export const useDevices = () => {
   const fetchDevices = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await getDevices();
-      setDevices(data);
-      return data;
+      // Ensure data is an array and filter out any null values
+      const safeData = Array.isArray(data) ? data.filter(device => device !== null && device !== undefined) : [];
+      setDevices(safeData);
+      return { success: true, data: safeData };
     } catch (error) {
-      handleError(error);
-      return [];
+      const errorResult = handleError(error);
+      setDevices([]);
+      return errorResult;
     } finally {
       setLoading(false);
     }
@@ -89,11 +111,22 @@ export const useDevices = () => {
   const editDevice = async (deviceId: string, data: Partial<CreateDeviceRequest>) => {
     try {
       setLoading(true);
-      await updateDevice(deviceId, data);
-      await fetchDevices();
+      setError(null);
+    const updated = await updateDevice(deviceId, data);
+
+setDevices(prev =>
+  prev.map(d =>
+    d.deviceId === deviceId ? { ...d, ...data } : d
+  )
+);
+
+await fetchStatusSummary();
+
       await fetchStatusSummary();
-      Alert.alert("Success", "Device updated successfully");
-      return { success: true };
+      return { 
+        success: true, 
+        message: "Device updated successfully" 
+      };
     } catch (error) {
       return handleError(error);
     } finally {
@@ -107,18 +140,20 @@ export const useDevices = () => {
   const removeDevice = async (deviceId: string) => {
     try {
       setLoading(true);
+      setError(null);
       await deleteDevice(deviceId);
 
-      // ✅ FIX: filter using deviceId (not id)
+      // Filter using deviceId
       setDevices((prev) => prev.filter((device) => device.deviceId !== deviceId));
       setLiveDevices((prev) => prev.filter((device) => device.deviceId !== deviceId));
 
       await fetchStatusSummary();
-      Alert.alert("Success", "Device deleted successfully");
-      return { success: true };
+      return { 
+        success: true, 
+        message: "Device deleted successfully" 
+      };
     } catch (error) {
-      handleError(error);
-      return { success: false };
+      return handleError(error);
     } finally {
       setLoading(false);
     }
@@ -130,12 +165,15 @@ export const useDevices = () => {
   const fetchLiveDevices = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await getLiveDevices();
-      setLiveDevices(data);
-      return data;
+      const safeData = Array.isArray(data) ? data.filter(device => device !== null && device !== undefined) : [];
+      setLiveDevices(safeData);
+      return { success: true, data: safeData };
     } catch (error) {
-      handleError(error);
-      return [];
+      const errorResult = handleError(error);
+      setLiveDevices([]);
+      return errorResult;
     } finally {
       setLoading(false);
     }
@@ -146,12 +184,16 @@ export const useDevices = () => {
   //
   const fetchStatusSummary = async () => {
     try {
+      setError(null);
       const data = await getDeviceStatusSummary();
-      setStatusSummary(data);
-      return data;
+      const safeData = data || { totalDevices: 0, liveCount: 0, onlineCount: 0, offlineCount: 0 };
+      setStatusSummary(safeData);
+      return { success: true, data: safeData };
     } catch (error) {
-      handleError(error);
-      return { totalDevices: 0, liveCount: 0, onlineCount: 0, offlineCount: 0 };
+      const errorResult = handleError(error);
+      const defaultSummary = { totalDevices: 0, liveCount: 0, onlineCount: 0, offlineCount: 0 };
+      setStatusSummary(defaultSummary);
+      return { ...errorResult, data: defaultSummary };
     }
   };
 
@@ -160,33 +202,48 @@ export const useDevices = () => {
   //
   const getDeviceById = useCallback(
     (deviceId: string): Device | undefined => {
-      return devices.find((device) => device.deviceId === deviceId); // ✅ FIX: deviceId
+      if (!devices || !Array.isArray(devices)) return undefined;
+      return devices.find((device) => device?.deviceId === deviceId);
     },
     [devices]
   );
 
   //
-  // 📈 GET STATISTICS
+  // 📈 GET STATISTICS (Fixed - No null errors)
   //
   const getStatistics = useCallback(() => {
-    const onlineDevices = devices.filter((d) => d.status === "online");
-    const offlineDevices = devices.filter((d) => d.status === "offline");
-    // ✅ FIX: support both isLive boolean and currentDisplay string from API
-    const liveDevicesCount = devices.filter(
-      (d) => d.isLive || d.currentDisplay === "yes"
+    // Guard against null/undefined devices
+    if (!devices || !Array.isArray(devices)) {
+      return {
+        total: 0,
+        online: 0,
+        offline: 0,
+        live: 0,
+        onlinePercentage: 0,
+        offlinePercentage: 0,
+        livePercentage: 0,
+      };
+    }
+
+    // Filter out any null/undefined devices
+    const validDevices = devices.filter(device => device !== null && device !== undefined);
+    
+    const onlineDevices = validDevices.filter((d) => d?.status === "online");
+    const offlineDevices = validDevices.filter((d) => d?.status === "offline");
+    
+    // Support both isLive boolean and currentDisplay string from API
+    const liveDevicesCount = validDevices.filter(
+      (d) => d?.isLive === true || d?.currentDisplay === "yes"
     ).length;
 
     return {
-      total: devices.length,
+      total: validDevices.length,
       online: onlineDevices.length,
       offline: offlineDevices.length,
       live: liveDevicesCount,
-      onlinePercentage:
-        devices.length > 0 ? (onlineDevices.length / devices.length) * 100 : 0,
-      offlinePercentage:
-        devices.length > 0 ? (offlineDevices.length / devices.length) * 100 : 0,
-      livePercentage:
-        devices.length > 0 ? (liveDevicesCount / devices.length) * 100 : 0,
+      onlinePercentage: validDevices.length > 0 ? (onlineDevices.length / validDevices.length) * 100 : 0,
+      offlinePercentage: validDevices.length > 0 ? (offlineDevices.length / validDevices.length) * 100 : 0,
+      livePercentage: validDevices.length > 0 ? (liveDevicesCount / validDevices.length) * 100 : 0,
     };
   }, [devices]);
 
@@ -194,7 +251,20 @@ export const useDevices = () => {
   // 🔄 REFRESH ALL DATA
   //
   const refreshAllData = async () => {
-    await Promise.all([fetchDevices(), fetchLiveDevices(), fetchStatusSummary()]);
+    setError(null);
+    const results = await Promise.all([
+      fetchDevices(),
+      fetchLiveDevices(),
+      fetchStatusSummary()
+    ]);
+    
+    // Check if any request failed
+    const hasError = results.some(result => !result.success);
+    if (hasError) {
+      return { success: false, message: "Some data failed to load" };
+    }
+    
+    return { success: true, message: "Data refreshed successfully" };
   };
 
   //
@@ -209,6 +279,8 @@ export const useDevices = () => {
     liveDevices,
     statusSummary,
     loading,
+    error,
+    clearError,
     addDevice,
     fetchDevices,
     editDevice,

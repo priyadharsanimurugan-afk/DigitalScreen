@@ -1,35 +1,25 @@
-import React, { useState } from "react";
+// components/selectImageModal.tsx
+import React from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  Image,
-  FlatList,
-  StyleSheet,
-  Dimensions,
+  View, Text, TouchableOpacity, Modal, Image, FlatList, StyleSheet, useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/app/dashboard.styles";
 
-const { width } = Dimensions.get("window");
-
 interface Props {
+  visible: boolean;
+  onClose: () => void;
   options: { imageId: number; imageName: string; imageurl?: string }[];
   selected: number[];
   onToggle: (id: number) => void;
   maxSelect: number;
 }
 
-export const ImageSelectModal = ({
-  options,
-  selected,
-  onToggle,
-  maxSelect,
-}: Props) => {
-  const [open, setOpen] = useState(false);
-
-  const previewSelected = options.filter((o) => selected.includes(o.imageId));
+export const ImageSelectModal = ({ visible, onClose, options, selected, onToggle, maxSelect }: Props) => {
+  const { width, height } = useWindowDimensions();
+  const isDesktop = width >= 768;
+  const modalW = Math.min(width - 32, 640);
+  const colSize = (modalW - 48 - 16) / 3; // 3 cols, padding 24 each side, gap 8
 
   const renderItem = ({ item }: any) => {
     const isSelected = selected.includes(item.imageId);
@@ -38,278 +28,84 @@ export const ImageSelectModal = ({
 
     return (
       <TouchableOpacity
-        onPress={() => {
-          if (!atMax) onToggle(item.imageId);
-        }}
+        onPress={() => { if (!atMax) onToggle(item.imageId); }}
         activeOpacity={0.85}
-        style={[
-          styles.imageCard,
-          {
-            borderColor: isSelected ? C.primary : "#E2E8F0",
-            opacity: atMax ? 0.45 : 1,
-          },
-        ]}
+        style={[s.imageCard, { width: colSize, opacity: atMax ? 0.45 : 1, borderColor: isSelected ? C.primary : "#E2E8F0" }]}
       >
-        <View style={styles.imageContainer}>
-          {item.imageurl ? (
-            <Image
-              source={{ uri: item.imageurl }}
-              style={styles.image}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.placeholder}>
-              <Ionicons name="image-outline" size={50} color="#94A3B8" />
-            </View>
-          )}
+        <View style={[s.imageContainer, { height: colSize * 0.75 }]}>
+          {item.imageurl
+            ? <Image source={{ uri: item.imageurl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            : <View style={s.placeholder}><Ionicons name="image-outline" size={32} color="#94A3B8" /></View>}
         </View>
 
-        {isSelected && <View style={styles.selectedOverlay} />}
-
+        {isSelected && <View style={s.selectedOverlay} />}
         {isSelected && (
-          <View style={styles.checkbox}>
-            <Ionicons name="checkmark-circle" size={28} color={C.primary} />
-          </View>
+          <View style={s.checkIcon}><Ionicons name="checkmark-circle" size={22} color={C.primary} /></View>
+        )}
+        {isSelected && (
+          <View style={s.orderBadge}><Text style={s.orderText}>{orderIndex + 1}</Text></View>
         )}
 
-        {isSelected && (
-          <View style={styles.orderBadge}>
-            <Text style={styles.orderText}>{orderIndex + 1}</Text>
-          </View>
-        )}
-
-        <Text style={styles.imageName} numberOfLines={1}>
-          {item.imageName}
-        </Text>
+        <Text style={s.imageName} numberOfLines={1}>{item.imageName}</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <>
-      {/* Trigger Button */}
-      <TouchableOpacity
-        onPress={() => setOpen(true)}
-        style={styles.triggerButton}
-      >
-        <View style={styles.triggerContent}>
-          {previewSelected.length > 0 ? (
-            <Text style={styles.selectedText}>
-              {previewSelected.map((i) => i.imageName).join(", ")}
-            </Text>
-          ) : (
-            <Text style={styles.placeholderText}>Tap to select images…</Text>
-          )}
-        </View>
-        <Text style={styles.counter}>
-          {selected.length}/{maxSelect}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Modal */}
-      <Modal
-        visible={open}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Select Images</Text>
-              <Text style={styles.headerSubtitle}>
-                {selected.length}/{maxSelect} selected
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => setOpen(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={28} color="#64748B" />
-              </TouchableOpacity>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={s.overlay}>
+        <View style={[s.modalBox, { width: modalW, maxHeight: height * 0.85 }]}>
+          {/* Header */}
+          <View style={s.header}>
+            <View>
+              <Text style={s.headerTitle}>Select Images</Text>
+              <Text style={s.headerSub}>{selected.length}/{maxSelect} selected</Text>
             </View>
+            <TouchableOpacity onPress={onClose} style={s.closeBtn}>
+              <Ionicons name="close" size={20} color="#64748B" />
+            </TouchableOpacity>
+          </View>
 
-            {/* Grid */}
-            <FlatList
-              data={options}
-              keyExtractor={(item) => String(item.imageId)}
-              renderItem={renderItem}
-              numColumns={3}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.gridContainer}
-              columnWrapperStyle={styles.columnWrapper}
-            />
+          {/* Grid */}
+          <FlatList
+            data={options}
+            keyExtractor={(item) => String(item.imageId)}
+            renderItem={renderItem}
+            numColumns={3}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 16, gap: 8 }}
+            columnWrapperStyle={{ gap: 8, justifyContent: "flex-start" }}
+          />
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <TouchableOpacity
-                onPress={() => setOpen(false)}
-                style={styles.doneButton}
-              >
-                <Text style={styles.doneText}>
-                  Done ({selected.length})
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {/* Footer */}
+          <View style={s.footer}>
+            <TouchableOpacity onPress={onClose} style={[s.doneBtn, { backgroundColor: C.primary }]}>
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={s.doneText}>Done ({selected.length})</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-    </>
+      </View>
+    </Modal>
   );
 };
 
-const styles = StyleSheet.create({
-  triggerButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-  },
-  triggerContent: { flex: 1 },
-  selectedText: { fontSize: 15, color: C.primary, fontWeight: "600" },
-  placeholderText: { fontSize: 15, color: "#94A3B8" },
-  counter: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#0F2557",
-    backgroundColor: "#DBEAFE",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-     backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    height: "90%",
-    paddingTop: 20,
-    maxWidth: 1200,           // ← Desktop max width
-    alignSelf: "center",      // Center on large screens
-    width: "100%",
-  },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingBottom: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#0F2557",        // Navy
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: "#64748B",
-    fontWeight: "500",
-  },
-  closeButton: { padding: 4 },
-
-  // Grid
-  gridContainer: { padding: 16 },
-  columnWrapper: { justifyContent: "space-between" },
-
-  imageCard: {
-    width: (width > 1200 ? 1200 - 48 : width - 48) / 3,
-    marginBottom: 18,
-    borderRadius: 18,
-    overflow: "hidden",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 3,
-  },
-
-  imageContainer: {
-    width: "100%",
-    height: 168,
-    backgroundColor: "#fffdfc",     // Light Brown background
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  image: {
-    width: "100%",
-    height: "100%",
-  },
-
-  placeholder: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  selectedOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(190, 192, 196, 0.28)", // Blue overlay
-  },
-
-  checkbox: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: "white",
-    borderRadius: 50,
-  },
-
-  orderBadge: {
-    position: "absolute",
-    top: 10,
-    left: 10,
-    backgroundColor: "#A0522D",        // Brown accent
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "white",
-  },
-  orderText: {
-    color: "white",
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-
-  imageName: {
-    fontSize: 13.5,
-    textAlign: "center",
-    paddingVertical: 10,
-    color: "#334155",
-    fontWeight: "500",
-  },
-
-  // Footer
-  footer: {
-    padding: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-  },
-  doneButton: {
-    backgroundColor: C.primary,        // Blue
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  doneText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: "700",
-  },
+const s = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 16 },
+  modalBox: { backgroundColor: "#fff", borderRadius: 20, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 20, elevation: 20 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
+  headerSub: { fontSize: 13, color: "#64748B", marginTop: 2 },
+  closeBtn: { width: 32, height: 32, borderRadius: 99, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" },
+  imageCard: { borderRadius: 12, overflow: "hidden", backgroundColor: "#F8FAFC", borderWidth: 2.5, marginBottom: 0 },
+  imageContainer: { width: "100%", backgroundColor: "#F0F4F8", justifyContent: "center", alignItems: "center" },
+  placeholder: { flex: 1, justifyContent: "center", alignItems: "center" },
+  selectedOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(59,130,246,0.12)" },
+  checkIcon: { position: "absolute", top: 6, right: 6, backgroundColor: "white", borderRadius: 99 },
+  orderBadge: { position: "absolute", top: 6, left: 6, backgroundColor: C.primary, width: 22, height: 22, borderRadius: 11, justifyContent: "center", alignItems: "center", borderWidth: 1.5, borderColor: "white" },
+  orderText: { color: "white", fontSize: 11, fontWeight: "bold" },
+  imageName: { fontSize: 11, textAlign: "center", paddingVertical: 7, paddingHorizontal: 4, color: "#334155", fontWeight: "500" },
+  footer: { padding: 16, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  doneBtn: { paddingVertical: 13, borderRadius: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+  doneText: { color: "white", fontSize: 15, fontWeight: "700" },
 });

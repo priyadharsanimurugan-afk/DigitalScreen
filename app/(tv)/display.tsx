@@ -21,6 +21,8 @@ import {
 } from "@expo-google-fonts/poppins";
 import { useContent } from "../../hooks/useTvDisplay";
 import { router } from "expo-router";
+import { clearTokens } from "@/services/api";
+import { notifyAuthChange } from "@/utils/authEvents";
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -205,7 +207,23 @@ const lighten = (hex: string): string => {
   const n = parseInt(hex.slice(1), 16);
   return `rgb(${Math.min(255, ((n >> 16) & 0xff) + 40)},${Math.min(255, ((n >> 8) & 0xff) + 40)},${Math.min(255, (n & 0xff) + 40)})`;
 };
+const lastTapRef = useRef<number>(0);
 
+const handleLogoPress = async () => {
+  const now = Date.now();
+
+  if (lastTapRef.current && now - lastTapRef.current < 300) {
+  await clearTokens();
+
+  // 🔥 2. Notify layout
+  notifyAuthChange();
+
+  // 🔥 3. Go to login
+  router.replace("/login");
+  }
+
+  lastTapRef.current = now;
+};
 // ─── Image size cache ─────────────────────────────────────────────────────────
 const imageSizeCache: Record<string, { w: number; h: number }> = {};
 
@@ -256,7 +274,16 @@ function Header({ title, loaded, P, onLogout }: { title?: string; loaded: boolea
       <View style={hSt.leftSection}>
         <View style={hSt.brand}>
           <View style={hSt.logoBox}>
-            <Text style={hSt.logoIcon}>📌</Text>
+          <TouchableOpacity onPress={handleLogoPress} activeOpacity={0.8}>
+          <View style={hSt.logoBox}>
+            <Image
+              source={require("../../assets/images/logo.png")} // ✅ your logo
+              style={{ width: 22, height: 22 }}
+              resizeMode="contain"
+            />
+          </View>
+        </TouchableOpacity>
+
           </View>
           <View>
             <Text style={[hSt.appName, { fontFamily: loaded ? P("700") : undefined }]}>
@@ -275,10 +302,7 @@ function Header({ title, loaded, P, onLogout }: { title?: string; loaded: boolea
       {/* Right: weather and logout */}
       <View style={hSt.rightSection}>
         <WeatherWidget loaded={loaded} P={P} />
-        <TouchableOpacity style={hSt.logoutBtn} onPress={onLogout}>
-          <Text style={hSt.logoutIcon}></Text>
-          <Text style={[hSt.logoutText, { fontFamily: loaded ? P("600") : undefined }]}>Logout</Text>
-        </TouchableOpacity>
+        
       </View>
     </View>
   );
@@ -904,10 +928,10 @@ export default function TVDisplay() {
     return () => { if (slideTimer.current) clearInterval(slideTimer.current); };
   }, [deviceDisplay]);
 
-  const handleLogout = useCallback(() => {
 
-   router.push('/login');
-  }, []);
+
+
+
 
   if (loading && !deviceDisplay) return <WaitingScreen loaded={loaded} P={P} />;
   if (!deviceDisplay) return <WaitingScreen loaded={loaded} P={P} />;
@@ -924,7 +948,7 @@ export default function TVDisplay() {
       <StatusBar hidden />
 
       {/* Header with Weather and Logout */}
-      <Header title={dd.title || undefined} loaded={loaded} P={P} onLogout={handleLogout} />
+      <Header title={dd.title || undefined} loaded={loaded} P={P} />
 
       {/* Cork Board Content Area */}
       <CorkBoardArea>

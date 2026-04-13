@@ -1,36 +1,17 @@
 // hooks/useImages.ts
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
+ // Assuming you're using react-native-toast-message
 import {
   uploadImage,
   getImages,
   deleteImage,
   ImageItem,
 } from "@/services/images";
-
-export interface ToastMessage {
-  id: number;
-  type: "success" | "error";
-  message: string;
-}
+import Toast from "react-native-toast-message";
 
 export const useImages = () => {
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<ImageItem[]>([]);
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const toastCounter = useRef(0);
-
-  // ── Toast ─────────────────────────────────────────────────────────────────
-  const showToast = useCallback((type: "success" | "error", message: string) => {
-    const id = ++toastCounter.current;
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
-
-  const dismissToast = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
 
   // ── Error Handler ─────────────────────────────────────────────────────────
   const handleError = useCallback((error: any) => {
@@ -41,23 +22,27 @@ export const useImages = () => {
       const firstKey = Object.keys(apiError.errors)[0];
       message = apiError.errors[firstKey]?.[0] ?? message;
     } else if (apiError?.title) {
-      const firstKey = apiError.errors ? Object.keys(apiError.errors)[0] : null;
-      message = firstKey ? (apiError.errors[firstKey]?.[0] ?? apiError.title) : apiError.title;
+      message = apiError.title;
     } else if (apiError?.message) {
       message = apiError.message;
     } else if (error?.message) {
       message = error.message;
     }
 
-    showToast("error", message);
-  }, [showToast]);
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: message,
+      visibilityTime: 3000,
+    });
+  }, []);
 
   // ── Fetch Images ──────────────────────────────────────────────────────────
   const fetchImages = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
       const res = await getImages();
-      setImages(res); // already mapped: [{ id, imageName, imageUrl, createdAt }]
+      setImages(res);
     } catch (error) {
       handleError(error);
     } finally {
@@ -65,7 +50,7 @@ export const useImages = () => {
     }
   }, [handleError]);
 
-  // ── Upload Image ──────────────────────────────────────────────────────────
+  // ── Upload Image with Auto-Refresh ────────────────────────────────────────
   const upload = useCallback(async (
     file: any,
     imageName: string
@@ -73,8 +58,20 @@ export const useImages = () => {
     try {
       setLoading(true);
       const res = await uploadImage(file, imageName);
-      setImages((prev) => [res, ...prev]);
-      showToast("success", "Image uploaded successfully");
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Image uploaded successfully',
+        visibilityTime: 2000,
+      });
+      
+      // 🔄 Wait a moment for server to process, then refresh the entire list
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Fetch fresh data from server
+      await fetchImages();
+      
       return res;
     } catch (error) {
       handleError(error);
@@ -82,27 +79,35 @@ export const useImages = () => {
     } finally {
       setLoading(false);
     }
-  }, [handleError, showToast]);
+  }, [handleError, fetchImages]);
 
   // ── Delete Image ──────────────────────────────────────────────────────────
-  const removeImage = useCallback(async (id: number): Promise<void> => {
+  const removeImage = useCallback(async (id: number): Promise<boolean> => {
     try {
       setLoading(true);
       await deleteImage(id);
+      
+      // Instant update - remove from array
       setImages((prev) => prev.filter((img) => img.id !== id));
-      showToast("success", "Image deleted successfully");
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Deleted',
+        text2: 'Image deleted successfully',
+        visibilityTime: 2000,
+      });
+      return true;
     } catch (error) {
       handleError(error);
+      return false;
     } finally {
       setLoading(false);
     }
-  }, [handleError, showToast]);
+  }, [handleError]);
 
   return {
     images,
     loading,
-    toasts,
-    dismissToast,
     upload,
     fetchImages,
     removeImage,

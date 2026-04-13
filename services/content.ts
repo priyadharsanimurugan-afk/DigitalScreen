@@ -4,7 +4,6 @@ import api from "./api";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
-
 export interface ScreenLayoutItem {
   value: string;
   label: string;
@@ -29,11 +28,10 @@ export interface ContentLUT {
   imageUrl: string;
 }
 
-// Multi-image support: imageIds is an array
 export interface SendContentRequest {
   title: string;
   description: string;
-  imageIds: number[];   // array for multi-select
+  imageIds: number[];
   screenLayout: string;
   deviceId: string;
 }
@@ -41,6 +39,7 @@ export interface SendContentRequest {
 export interface ApiResponse {
   success: boolean;
   message?: string;
+  contentId?: number;
 }
 
 export interface LiveDisplay {
@@ -56,20 +55,6 @@ export interface LiveDisplay {
   status: string;
 }
 
-
-
-// ─── API CALLS ─────────────────────────────────────────────────────────────────
-
-export const getContentLUT = async (): Promise<ContentLUT> => {
-  const res = await api.get<ContentLUT>("/content/lut");
-  return res.data;
-};
-
-export const sendContent = async (data: SendContentRequest): Promise<ApiResponse> => {
-  const res = await api.post<ApiResponse>("/content/send", data);
-  return res.data;
-};
-
 export interface DeviceDisplay {
   id: number;
   title: string;
@@ -83,30 +68,36 @@ export interface DeviceDisplay {
   }[];
 }
 
+// ─── API CALLS ─────────────────────────────────────────────────────────────────
 
+export const getContentLUT = async (): Promise<ContentLUT> => {
+  const res = await api.get<ContentLUT>("/content/lut");
+  return res.data;
+};
 
-// ✅ 1. TV DEVICE DISPLAY (NO ID)
+export const sendContent = async (data: SendContentRequest): Promise<ApiResponse> => {
+  const response = await api.post("/content/send", data);
+  return {
+    success: true,
+    message: response.data?.message || "Content sent successfully",
+    contentId: response.data?.contentId
+  };
+};
+
 export const getDeviceDisplay = async (): Promise<DeviceDisplay> => {
   const res = await api.get<DeviceDisplay>(`/content/device-display`);
   return res.data;
 };
 
-// ✅ 2. ADMIN LIVE DISPLAY
 export const getLiveDisplay = async (): Promise<LiveDisplay[]> => {
   const res = await api.get(`/content/live-display`);
   return res.data;
 };
 
-// services/content.ts
-
-export const stopContent = async (
-  deviceId: string,
-  contentId: number
-): Promise<ApiResponse> => {
-  const res = await api.post<ApiResponse>("/content/stop", {
-    deviceId,
-    contentId,
-  });
-
-  return res.data;
+export const stopContent = async (deviceId: string, contentId: number): Promise<ApiResponse> => {
+  const res = await api.post("/content/stop", { deviceId, contentId });
+  return {
+    success: true,
+    message: res.data?.message || "Content stopped successfully"
+  };
 };

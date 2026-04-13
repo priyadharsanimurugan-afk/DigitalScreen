@@ -10,6 +10,8 @@ import { COLORS, FONTS } from "@/constants/theme";
 import { loginStyles as s } from "@/app/login.style";
 import { useLogin } from "@/hooks/useLoginAuth";
 import { clearRememberedCredentials, getRememberedCredentials, saveRememberedCredentials } from "@/utils/tokenStorage";
+import { notifyAuthChange } from "@/utils/authEvents";
+
 
 export default function Login() {
   const [id, setId] = useState("");
@@ -57,11 +59,11 @@ export default function Login() {
     }
 
     // Navigate based on role
-    if (res.role === "admin") {
-      router.replace("/dashboard");
-    } else {
-      router.replace("/(tv)/display");
-    }
+   // Just go to root → layout will handle redirect
+     // 🔥 CRITICAL FIX
+  notifyAuthChange();
+router.replace("/");
+
   };
 
   // Load saved credentials if remember me was checked

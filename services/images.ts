@@ -19,9 +19,9 @@ export interface ImageItem {
 
 // ── Map API → Frontend ────────────────────────────────────────────────────────
 const mapImage = (img: ImageApi): ImageItem => ({
-  id: img.imageId,          // ✅ imageId → id
-  imageName: img.imageName, // ✅ direct match
-  imageUrl: img.imageUrl,   // ✅ direct match
+  id: img.imageId,
+  imageName: img.imageName,
+  imageUrl: img.imageUrl,
   createdAt: img.createdAt,
 });
 
@@ -55,7 +55,7 @@ export const uploadImage = async (
 
 // ── Get All Images ────────────────────────────────────────────────────────────
 export const getImages = async (): Promise<ImageItem[]> => {
-  const res = await api.get<ImageApi[]>("/images"); // ✅ correct endpoint
+  const res = await api.get<ImageApi[]>("/images");
   return res.data.map(mapImage);
 };
 
@@ -65,5 +65,5 @@ export const getImageFileUrl = (id: number): string =>
 
 // ── Delete Image ──────────────────────────────────────────────────────────────
 export const deleteImage = async (id: number): Promise<void> => {
-  await api.post(`/images/delete/${id}`); // ✅ use DELETE method, not POST
+  await api.post(`/images/delete/${id}`);
 };

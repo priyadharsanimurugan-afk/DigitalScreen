@@ -451,21 +451,5 @@ export const modalStyles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  downloadBtn: {
-    position: "absolute",
-    bottom: 30,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 40,
-    backdropFilter: "blur(10px)",
-  },
-  downloadText: {
-    color: COLORS.white,
-    fontFamily: FONTS.medium,
-    fontSize: 14,
-  },
+
 });

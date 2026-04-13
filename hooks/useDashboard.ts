@@ -1,6 +1,5 @@
 // hooks/useDashboard.ts
 import { useState, useEffect, useCallback } from "react";
-import { Alert } from "react-native";
 import {
   getDashboardSummary,
   getLatestLiveContent,
@@ -19,15 +18,7 @@ export const useDashboard = () => {
   });
   const [latestLiveContent, setLatestLiveContent] = useState<LatestLiveContent[]>([]);
   const [recentImages, setRecentImages] = useState<RecentImage[]>([]);
-
-  const handleError = (error: any) => {
-    const msg =
-      error?.response?.data?.message ||
-      error?.response?.data?.title ||
-      error?.message ||
-      "Something went wrong";
-    Alert.alert("Error", msg);
-  };
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSummary = async () => {
     try {
@@ -35,7 +26,6 @@ export const useDashboard = () => {
       setSummary(data);
       return data;
     } catch (error) {
-      handleError(error);
       return null;
     }
   };
@@ -43,11 +33,9 @@ export const useDashboard = () => {
   const fetchLatestLiveContent = async () => {
     try {
       const data = await getLatestLiveContent();
-      // API returns array or single object — normalise to array
       setLatestLiveContent(Array.isArray(data) ? data : data ? [data as any] : []);
       return data;
     } catch (error) {
-      // Not critical — silently fail
       setLatestLiveContent([]);
       return [];
     }
@@ -56,7 +44,8 @@ export const useDashboard = () => {
   const fetchRecentImages = async () => {
     try {
       const data = await getRecentImages();
-      setRecentImages(Array.isArray(data) ? data.slice(0, 3) : []);
+     setRecentImages(Array.isArray(data) ? data : []);
+
       return data;
     } catch (error) {
       setRecentImages([]);
@@ -89,6 +78,8 @@ export const useDashboard = () => {
     summary,
     latestLiveContent,
     recentImages,
+    error,
+    setError,
     fetchSummary,
     fetchLatestLiveContent,
     fetchRecentImages,
