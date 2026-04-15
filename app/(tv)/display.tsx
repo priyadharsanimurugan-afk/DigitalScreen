@@ -29,12 +29,14 @@ type ImageObject = { imageId: number; imageurl: string; sortOrder: number };
 type Slot = { slotIndex: number; images: ImageObject[] };
 type ScreenLayoutObject = { label: string; value: string; rows: number; cols: number; slots: number };
 type DeviceDisplay = {
-  deviceId: number | undefined;
+  deviceId: number | undefined | any;
   id: number; title: string; description: string;
   screenLayout: string | ScreenLayoutObject;
   images?: ImageObject[] | null;
   slots?: Slot[];
 };
+
+// All known feature layouts
 type FeatureLayout = "f2" | "2f" | "ft" | "fb";
 const FEATURE_LAYOUTS: FeatureLayout[] = ["f2","2f","ft","fb"];
 
@@ -71,9 +73,24 @@ const unwrapDisplay = (raw: any): DeviceDisplay | null => {
   return d as DeviceDisplay;
 };
 
-// ─── Stable image list key — only resets slideshow if image IDs actually change
+// Stable image list key — only resets slideshow if image IDs actually change
 const getImagesKey = (images: ImageObject[]): string =>
   images.map(img => img.imageId).join(",");
+
+// ─── Normalize slots from API response ───────────────────────────────────────
+// Builds a full slot array of `count` entries, filling missing ones with empty images.
+// Each slot's images are sorted by sortOrder.
+const normalizeSlots = (
+  rawSlots: Slot[] | undefined,
+  count: number
+): Array<{ slotIndex: number; images: ImageObject[] }> =>
+  Array.from({ length: count }, (_, i) => {
+    const found = rawSlots?.find(s => s.slotIndex === i);
+    return {
+      slotIndex: i,
+      images: found ? getSortedImages(found.images) : [],
+    };
+  });
 
 // ─── Image size cache ─────────────────────────────────────────────────────────
 const imageSizeCache: Record<string, { w: number; h: number }> = {};
@@ -206,9 +223,6 @@ function ImageCell({ img, pinColor, floatSeed }: {
 }
 
 // ─── SlotSlideshow ────────────────────────────────────────────────────────────
-// KEY FIX: Use imagesKey (stable string of IDs) to drive reset,
-// NOT the images array reference (which changes on every poll).
-// Timer effect only depends on imagesKey so it never restarts mid-cycle.
 function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex: number }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [nextIdx, setNextIdx]       = useState<number | null>(null);
@@ -217,25 +231,14 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
   const nextOpacity    = useRef(new Animated.Value(0)).current;
   const isAnimating    = useRef(false);
 
-  // ✅ Ref holds latest index — timer callback reads this, never the closure
-  const currentIdxRef  = useRef(0);
-  // ✅ Ref holds latest images array — timer reads fresh data without re-subscribing
-  const imagesRef      = useRef<ImageObject[]>(images);
+  const currentIdxRef = useRef(0);
+  const imagesRef     = useRef<ImageObject[]>(images);
 
-  // Keep imagesRef always current on every render
-  useEffect(() => {
-    imagesRef.current = images;
-  });
+  useEffect(() => { imagesRef.current = images; });
+  useEffect(() => { currentIdxRef.current = currentIdx; }, [currentIdx]);
 
-  // Sync currentIdxRef when state updates
-  useEffect(() => {
-    currentIdxRef.current = currentIdx;
-  }, [currentIdx]);
-
-  // ✅ Stable key — only changes when actual image IDs change, not on re-render
   const imagesKey = getImagesKey(images);
 
-  // Reset ONLY when the actual set of images changes (new IDs)
   useEffect(() => {
     isAnimating.current = false;
     currentIdxRef.current = 0;
@@ -243,9 +246,8 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
     nextOpacity.setValue(0);
     setCurrentIdx(0);
     setNextIdx(null);
-  }, [imagesKey]); // ✅ string key, not array reference
+  }, [imagesKey]);
 
-  // ✅ Timer also depends on imagesKey — one stable interval per slot
   useEffect(() => {
     if (images.length <= 1) return;
 
@@ -253,7 +255,6 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
       if (isAnimating.current) return;
       isAnimating.current = true;
 
-      // Read fresh data from refs — no stale closures
       const imgs = imagesRef.current;
       const next = (currentIdxRef.current + 1) % imgs.length;
 
@@ -265,7 +266,6 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
         Animated.timing(currentOpacity, { toValue: 0, duration: 600, useNativeDriver: true }),
       ]).start(({ finished }) => {
         if (!finished) {
-          // Interrupted by unmount or new image set — reset gracefully
           currentOpacity.setValue(1);
           nextOpacity.setValue(0);
           isAnimating.current = false;
@@ -282,14 +282,13 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
 
     const timer = setInterval(tick, 5000);
     return () => clearInterval(timer);
-  }, [imagesKey]); // ✅ stable — never restarts just because parent re-rendered
+  }, [imagesKey]);
 
   const currentImg = images[currentIdx] ?? null;
   const nextImg    = nextIdx !== null ? (images[nextIdx] ?? null) : null;
 
   return (
     <View style={{ flex: 1, position: "relative" }}>
-      {/* Current image layer */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: currentOpacity }]}>
         <ImageCell
           img={currentImg}
@@ -298,7 +297,6 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
         />
       </Animated.View>
 
-      {/* Next image cross-fades in on top */}
       {nextImg && (
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: nextOpacity }]}>
           <ImageCell
@@ -309,23 +307,50 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
         </Animated.View>
       )}
 
-         {/* ✅ ADD THIS COUNTER */}
-    {images.length > 1 && (
-      <View style={st.slotCounter}>
-        <Text style={st.slotCounterText}>
-          {currentIdx + 1}/{images.length}
-        </Text>
-      </View>
-    )}
+      {images.length > 1 && (
+        <View style={st.slotCounter}>
+          <Text style={st.slotCounterText}>
+            {currentIdx + 1}/{images.length}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
 
+// ─── SlotCell ─────────────────────────────────────────────────────────────────
+// Single reusable cell: shows slideshow if multiple images, single ImageCell otherwise.
+function SlotCell({ slot, globalSlotIndex }: {
+  slot: { slotIndex: number; images: ImageObject[] };
+  globalSlotIndex: number;
+}) {
+  if (slot.images.length === 0) {
+    return (
+      <ImageCell
+        img={null}
+        pinColor={PIN_PALETTE[globalSlotIndex % PIN_PALETTE.length]!}
+        floatSeed={globalSlotIndex}
+      />
+    );
+  }
+  if (slot.images.length === 1) {
+    return (
+      <ImageCell
+        img={slot.images[0]!}
+        pinColor={PIN_PALETTE[globalSlotIndex % PIN_PALETTE.length]!}
+        floatSeed={globalSlotIndex}
+      />
+    );
+  }
+  return <SlotSlideshow images={slot.images} slotIndex={globalSlotIndex} />;
+}
+
 // ─── GridView ─────────────────────────────────────────────────────────────────
+// Generic NxM grid. Works for ALL non-feature layouts (1x2, 2x1, 1x3, 2x2, etc.)
 function GridView({ rows, cols, slots }: {
   rows: number;
   cols: number;
-  slots: Array<{ slotIndex?: number; images: ImageObject[] }>;
+  slots: Array<{ slotIndex: number; images: ImageObject[] }>;
 }) {
   return (
     <View style={{ flex: 1, gap: GAP }}>
@@ -333,15 +358,10 @@ function GridView({ rows, cols, slots }: {
         <View key={r} style={{ flex: 1, flexDirection: "row", gap: GAP }}>
           {Array.from({ length: cols }, (_, c) => {
             const i = r * cols + c;
-            const slot = slots[i];
-            const hasImages = slot?.images && slot.images.length > 0;
+            const slot = slots[i] ?? { slotIndex: i, images: [] };
             return (
               <View key={c} style={{ flex: 1 }}>
-                {hasImages ? (
-                  <SlotSlideshow images={slot.images} slotIndex={i} />
-                ) : (
-                  <ImageCell img={null} pinColor={PIN_PALETTE[i % PIN_PALETTE.length]!} floatSeed={i} />
-                )}
+                <SlotCell slot={slot} globalSlotIndex={i} />
               </View>
             );
           })}
@@ -352,28 +372,91 @@ function GridView({ rows, cols, slots }: {
 }
 
 // ─── FeatureLayoutView ────────────────────────────────────────────────────────
-function FeatureLayoutView({ layout, images }: { layout: FeatureLayout; images: ImageObject[] }) {
-  const s = [images[0] ?? null, images[1] ?? null, images[2] ?? null];
-  const Feature = <View style={{ flex: 1 }}><ImageCell img={s[0]} pinColor={PIN_PALETTE[0]!} floatSeed={0} /></View>;
-  const SmallsH = (
-    <View style={{ flex: 1, gap: GAP }}>
-      <View style={{ flex: 1 }}><ImageCell img={s[1]} pinColor={PIN_PALETTE[1]!} floatSeed={1} /></View>
-      <View style={{ flex: 1 }}><ImageCell img={s[2]} pinColor={PIN_PALETTE[2]!} floatSeed={2} /></View>
+// Handles f2, 2f, ft, fb — all use 3 slots from the API.
+// slot[0] = feature (large), slot[1] = small top/left, slot[2] = small bottom/right
+function FeatureLayoutView({ layout, slots }: {
+  layout: FeatureLayout;
+  slots: Array<{ slotIndex: number; images: ImageObject[] }>;
+}) {
+  // Ensure we always have 3 slot entries even if API returned fewer
+  const safeSlots = [
+    slots[0] ?? { slotIndex: 0, images: [] },
+    slots[1] ?? { slotIndex: 1, images: [] },
+    slots[2] ?? { slotIndex: 2, images: [] },
+  ];
+
+  // Feature cell — always slot[0], takes up ~60% of the space (flex: 3)
+  const Feature = (
+    <View style={{ flex: 3 }}>
+      <SlotCell slot={safeSlots[0]} globalSlotIndex={0} />
     </View>
   );
-  const SmallsV = (
+
+  // Two smaller cells — slot[1] and slot[2], stacked vertically (flex: 2)
+  const SmallsVertical = (
+    <View style={{ flex: 2, gap: GAP }}>
+      <View style={{ flex: 1 }}>
+        <SlotCell slot={safeSlots[1]} globalSlotIndex={1} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <SlotCell slot={safeSlots[2]} globalSlotIndex={2} />
+      </View>
+    </View>
+  );
+
+  // Two smaller cells — slot[1] and slot[2], side by side horizontally (flex: 2)
+  const SmallsHorizontal = (
     <View style={{ flex: 2, flexDirection: "row", gap: GAP }}>
-      <View style={{ flex: 1 }}><ImageCell img={s[1]} pinColor={PIN_PALETTE[1]!} floatSeed={1} /></View>
-      <View style={{ flex: 1 }}><ImageCell img={s[2]} pinColor={PIN_PALETTE[2]!} floatSeed={2} /></View>
+      <View style={{ flex: 1 }}>
+        <SlotCell slot={safeSlots[1]} globalSlotIndex={1} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <SlotCell slot={safeSlots[2]} globalSlotIndex={2} />
+      </View>
     </View>
   );
-  if (layout === "f2") return <View style={{ flex: 1, flexDirection: "row", gap: GAP }}>{Feature}{SmallsH}</View>;
-  if (layout === "2f") return <View style={{ flex: 1, flexDirection: "row", gap: GAP }}>{SmallsH}{Feature}</View>;
-  if (layout === "ft") return <View style={{ flex: 1, gap: GAP }}>{Feature}{SmallsV}</View>;
-  return <View style={{ flex: 1, gap: GAP }}>{SmallsV}{Feature}</View>;
+
+  // f2 = Feature LEFT, two smalls stacked on RIGHT
+  if (layout === "f2") {
+    return (
+      <View style={{ flex: 1, flexDirection: "row", gap: GAP }}>
+        {Feature}
+        {SmallsVertical}
+      </View>
+    );
+  }
+
+  // 2f = Two smalls stacked on LEFT, Feature RIGHT
+  if (layout === "2f") {
+    return (
+      <View style={{ flex: 1, flexDirection: "row", gap: GAP }}>
+        {SmallsVertical}
+        {Feature}
+      </View>
+    );
+  }
+
+  // ft = Feature TOP, two smalls side by side on BOTTOM
+  if (layout === "ft") {
+    return (
+      <View style={{ flex: 1, gap: GAP }}>
+        {Feature}
+        {SmallsHorizontal}
+      </View>
+    );
+  }
+
+  // fb = Two smalls side by side on TOP, Feature BOTTOM
+  return (
+    <View style={{ flex: 1, gap: GAP }}>
+      {SmallsHorizontal}
+      {Feature}
+    </View>
+  );
 }
 
 // ─── SlideshowView ────────────────────────────────────────────────────────────
+// Full-screen slideshow — only used when layout is 1x1 (single slot, multiple images)
 function SlideshowView({ images, slideIndex, slideFade }: {
   images: ImageObject[]; slideIndex: number; slideFade: Animated.Value;
 }) {
@@ -431,16 +514,9 @@ function DateTimeWidget({ loaded, P }: { loaded: boolean; P: (w: string) => stri
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header({
-  loaded,
-  P,
-  onLogoPress,
-}: {
-  loaded: boolean;
-  P: (w: string) => string;
-  onLogoPress: () => void;
+function Header({ loaded, P, onLogoPress }: {
+  loaded: boolean; P: (w: string) => string; onLogoPress: () => void;
 }) {
-
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -451,11 +527,11 @@ function Header({
   return (
     <View style={hSt.bar}>
       <View style={hSt.brand}>
-       <TouchableOpacity onPress={onLogoPress}>
-  <View style={hSt.logoBox}>
-    <Image source={require("../../assets/images/logo.png")} style={{ width: 22, height: 22 }} />
-  </View>
-</TouchableOpacity>
+        <TouchableOpacity onPress={onLogoPress}>
+          <View style={hSt.logoBox}>
+            <Image source={require("../../assets/images/logo.png")} style={{ width: 22, height: 22 }} />
+          </View>
+        </TouchableOpacity>
         <View>
           <Text style={[hSt.appName, { fontFamily: loaded ? P("700") : undefined }]}>Screenova</Text>
           <View style={hSt.liveRow}>
@@ -570,46 +646,34 @@ export default function TVDisplay() {
   const nextContentRef = useRef<DeviceDisplay | null>(null);
   const slideTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimer      = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isTransRef     = useRef(false); // ✅ ref mirror to avoid stale closure in transitionTo
+  const isTransRef     = useRef(false);
 
   const [loaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const P = (w: string) => (({ "400": "Poppins_400Regular", "600": "Poppins_600SemiBold", "700": "Poppins_700Bold" } as any)[w] || "System");
-const router = useRouter();
-const { stopCurrentContent } = useContent();
 
+  const router = useRouter();
+  const { stopCurrentContent } = useContent();
   const { loading, deviceDisplay, fetchDeviceDisplay } = useContent();
   const dd: DeviceDisplay | null = deviceDisplay ? unwrapDisplay(deviceDisplay) : null;
-const lastTapRef = useRef<number>(0);
 
-const handleDoubleTapLogout = async () => {
-  const now = Date.now();
+  const lastTapRef = useRef<number>(0);
 
-  if (now - lastTapRef.current < 300) {
-    // ✅ DOUBLE TAP DETECTED
-
-    try {
-      if (dd?.id && dd?.deviceId) {
-        await stopCurrentContent(dd.deviceId, dd.id);
+  const handleDoubleTapLogout = async () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      try {
+        if (dd?.id && dd?.deviceId) {
+          await stopCurrentContent(dd.deviceId, dd.id);
+        }
+      } catch (e) {
+        console.log("Stop content failed", e);
       }
-    } catch (e) {
-      console.log("Stop content failed", e);
+      await clearTokens();
+      notifyAuthChange();
+      router.replace("/login");
     }
-
-    // ✅ Clear auth (if you store token)
-    // await AsyncStorage.removeItem("token");
-
-    // ✅ Redirect to login
-  await clearTokens();
-
-  // 🔥 2. Notify layout
-  notifyAuthChange();
-
-  // 🔥 3. Go to login
-  router.replace("/login");
-  }
-
-  lastTapRef.current = now;
-};
+    lastTapRef.current = now;
+  };
 
   const transitionTo = useCallback((data: DeviceDisplay) => {
     if (isTransRef.current) { nextContentRef.current = data; return; }
@@ -644,15 +708,20 @@ const handleDoubleTapLogout = async () => {
     };
   }, []);
 
-  // Full-screen slideshow timer (only for legacy image[] mode, not slot mode)
+  // Full-screen slideshow timer — only for single-slot (1x1) legacy mode
   useEffect(() => {
     if (slideTimer.current) clearInterval(slideTimer.current);
     if (!dd) return;
-    const imgs = getSortedImages(dd.images);
-    const lv   = getLayoutValue(dd.screenLayout);
+    const lv = getLayoutValue(dd.screenLayout);
     const { rows, cols } = getLayoutDims(dd.screenLayout);
-    const isSlide = !isFeatureLayout(lv) && imgs.length > rows * cols;
-    if (!isSlide || imgs.length <= 1) { setSlideIndex(0); return; }
+
+    // Only use legacy slideshow if there's no slots data and images[] is present
+    const imgs = getSortedImages(dd.images);
+    const hasSlots = (dd.slots?.length ?? 0) > 0;
+    const isLegacySlideshow = !hasSlots && !isFeatureLayout(lv) && imgs.length > rows * cols;
+
+    if (!isLegacySlideshow || imgs.length <= 1) { setSlideIndex(0); return; }
+
     slideTimer.current = setInterval(() => {
       Animated.timing(slideFade, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => {
         setSlideIndex(p => (p + 1) % imgs.length);
@@ -668,40 +737,55 @@ const handleDoubleTapLogout = async () => {
   const lv = getLayoutValue(dd.screenLayout);
   const { rows, cols } = getLayoutDims(dd.screenLayout);
 
-  // ✅ Normalize slots — fill any missing slot indices with empty
-  const rawSlots = dd.slots ?? [];
-  const slots = Array.from({ length: rows * cols }, (_, i) => {
-    const found = rawSlots.find(s => s.slotIndex === i);
-    return found
-      ? { ...found, images: getSortedImages(found.images) } // ✅ sort images by sortOrder
-      : { slotIndex: i, images: [] as ImageObject[] };
-  });
+  // ─── Resolve which rendering path to use ──────────────────────────────────
+  // Priority: feature layout → slot-based grid → legacy flat image slideshow/grid
 
-  const sortedImages  = getSortedImages(dd.images);
+  const hasSlots      = (dd.slots?.length ?? 0) > 0;
   const isFeature     = isFeatureLayout(lv);
-  const isSlideshow   = !isFeature && sortedImages.length > rows * cols;
-  const totalSlotImgs = slots.reduce((n, s) => n + (s.images?.length ?? 0), 0);
-  const isEmpty       = totalSlotImgs === 0 && sortedImages.length === 0;
+
+  // For feature layouts: always use 3 slots
+  const featureSlots = isFeature ? normalizeSlots(dd.slots, 3) : [];
+
+  // For grid layouts: use rows*cols slots
+  const gridSlots = !isFeature ? normalizeSlots(dd.slots, rows * cols) : [];
+
+  // Legacy flat image mode (no slots in API response)
+  const sortedImages = getSortedImages(dd.images);
+  const isLegacySlideshow = !hasSlots && !isFeature && sortedImages.length > rows * cols;
+
+  // Total image count for footer
+  const totalImages = hasSlots
+    ? gridSlots.reduce((n, s) => n + s.images.length, 0) + (isFeature ? featureSlots.reduce((n, s) => n + s.images.length, 0) : 0)
+    : sortedImages.length;
+
+  // Check empty
+  const isEmpty = hasSlots
+    ? (isFeature ? featureSlots : gridSlots).every(s => s.images.length === 0)
+    : sortedImages.length === 0;
 
   return (
     <View style={[st.root, { width: SW, height: SH }]}>
       <StatusBar hidden />
-   <Header loaded={loaded} P={P} onLogoPress={handleDoubleTapLogout} />
+      <Header loaded={loaded} P={P} onLogoPress={handleDoubleTapLogout} />
 
       <CorkBoardArea>
         <Animated.View style={{ opacity: fadeAnim, flex: 1, padding: GAP }}>
           {isEmpty ? (
             <NoImagesScreen title={dd.title || undefined} loaded={loaded} P={P} />
           ) : isFeature ? (
-            <FeatureLayoutView layout={lv as FeatureLayout} images={sortedImages} />
-          ) : isSlideshow ? (
+            // ✅ Feature layouts (f2, 2f, ft, fb) — all use slot data dynamically
+            <FeatureLayoutView layout={lv as FeatureLayout} slots={featureSlots} />
+          ) : isLegacySlideshow ? (
+            // ✅ Legacy: flat images[] array with more images than slots → full-screen slideshow
             <SlideshowView images={sortedImages} slideIndex={slideIndex} slideFade={slideFade} />
           ) : (
-            <GridView rows={rows} cols={cols} slots={slots} />
+            // ✅ All grid layouts (1x2, 2x1, 1x3, 2x2, 2x3, 2x4, 1x4, etc.) — slot-based
+            <GridView rows={rows} cols={cols} slots={gridSlots} />
           )}
         </Animated.View>
       </CorkBoardArea>
-      <Footer imageCount={totalSlotImgs || sortedImages.length} loaded={loaded} P={P} />
+
+      <Footer imageCount={totalImages} loaded={loaded} P={P} />
     </View>
   );
 }
@@ -723,22 +807,11 @@ const st = StyleSheet.create({
   emptySlot: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyIcon: { fontSize: 28, opacity: 0.25 },
   slotCounter: {
-  position: "absolute",
-  bottom: 8,
-  right: 8,
-  backgroundColor: "rgba(0,0,0,0.6)",
-  paddingHorizontal: 8,
-  paddingVertical: 3,
-  borderRadius: 10,
-  zIndex: 50,
-},
-
-slotCounterText: {
-  color: "#fff",
-  fontSize: 10,
-  fontWeight: "600",
-},
-
+    position: "absolute", bottom: 8, right: 8,
+    backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 10, zIndex: 50,
+  },
+  slotCounterText: { color: "#fff", fontSize: 10, fontWeight: "600" },
   slideChip: { position: "absolute", top: 12, right: 12, backgroundColor: "rgba(255,255,255,0.9)", borderWidth: 1, borderColor: C.border, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, zIndex: 10 },
   slideChipT: { color: C.primary, fontSize: 11, fontFamily: "Poppins_600SemiBold", letterSpacing: 1 },
   slideDots: { position: "absolute", bottom: 16, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 7, zIndex: 10 },
