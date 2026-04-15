@@ -190,7 +190,7 @@ export default function DashboardScreen() {
   const [description, setDescription] = useState("");
   const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
   const [selectedLayout, setSelectedLayout] = useState<string>("");
-  const [slotAssignment, setSlotAssignment] = useState<(number | null)[]>([]);
+const [slotAssignment, setSlotAssignment] = useState<number[][]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null | any>(null);
 
 
@@ -231,13 +231,16 @@ const handleSendPress = async () => {
   setSending(true);
   
   try {
-    const imageIds = slotAssignment.filter((id): id is number => id !== null);
+     const slots = slotAssignment.map((ids, index) => ({
+      slotIndex: index,
+      imageIds: Array.isArray(ids) ? ids : (ids !== null ? [ids] : []),
+    }));
     const result = await sendContentToDevice({ 
-      title, 
-      description, 
-      imageIds, 
-      screenLayout: selectedLayout, 
-      deviceId: selectedDeviceId 
+         title,
+      description,
+      screenLayout: selectedLayout,
+      deviceId: selectedDeviceId,
+      slots,
     });
     
     if (result.success) {
@@ -384,12 +387,12 @@ const handleConfirmStop = async () => {
       <View style={styles.container}>
         <ImageSelectModal visible={imageModalVisible} onClose={() => setImageModalVisible(false)} options={lutData.imageList} selected={selectedImageIds} onToggle={toggleImage} maxSelect={6} />
         <LayoutArrangeModal visible={layoutModalVisible} onClose={() => setLayoutModalVisible(false)}
-          onConfirm={(layout, assignment) => { 
-            setSelectedLayout(layout); 
-            setSlotAssignment(assignment); 
-            setLayoutModalVisible(false); 
-           
-          }}
+         onConfirm={(layout, slotsArray) => {
+    setSelectedLayout(layout);
+    // slotsArray is number[][] from the modal, store as-is
+    setSlotAssignment(slotsArray);
+    setLayoutModalVisible(false);
+  }}
           imageList={lutData.imageList} selectedImageIds={selectedImageIds} layouts={lutData.screenLayouts || []} />
         <LiveContentEditModal visible={editModalVisible} onClose={() => setEditModalVisible(false)}
           content={selectedLiveContent} imageList={lutData.imageList} layouts={lutData.screenLayouts || []}

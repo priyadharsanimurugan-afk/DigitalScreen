@@ -56,7 +56,7 @@ export const StepBadge = ({ num, label, done }: { num: number; label: string; do
 // ─── TV NOTICE BOARD PREVIEW ──────────────────────────────────────────────────
 
 interface TVProps {
-  slotAssignment: (number | null)[];
+  slotAssignment: (number | null)[] | any;
   imageList: ImageItem[];
   selectedLayout: string;
   title: string;

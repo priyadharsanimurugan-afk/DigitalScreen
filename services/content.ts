@@ -14,7 +14,18 @@ export interface ImageItem {
   imageName: string;
   imageurl?: string;
 }
+export interface SlotItem {
+  slotIndex: number;
+  imageIds: number[];
+}
 
+export interface SendContentRequest {
+  title: string;
+  description: string;
+  screenLayout: string;
+  deviceId: string;
+  slots: SlotItem[];  // ← replaces imageIds: number[]
+}
 export interface DeviceLUTItem {
   deviceId: string;
   deviceName: string;
@@ -28,13 +39,13 @@ export interface ContentLUT {
   imageUrl: string;
 }
 
-export interface SendContentRequest {
-  title: string;
-  description: string;
-  imageIds: number[];
-  screenLayout: string;
-  deviceId: string;
-}
+// export interface SendContentRequest {
+//   title: string;
+//   description: string;
+//   imageIds: number[];
+//   screenLayout: string;
+//   deviceId: string;
+// }
 
 export interface ApiResponse {
   success: boolean;
@@ -56,6 +67,7 @@ export interface LiveDisplay {
 }
 
 export interface DeviceDisplay {
+  slots: never[];
   id: number;
   title: string;
   description: string;

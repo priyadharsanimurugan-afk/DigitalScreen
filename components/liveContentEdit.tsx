@@ -70,8 +70,11 @@ const DraggableSlot = ({ slotIndex, imageId, imageList, totalSlots, slotSize, on
 
 // ─── MAIN MODAL ───────────────────────────────────────────────────────────────
 export interface EditContentPayload {
-  title: string; description: string;
-  imageIds: number[]; screenLayout: string; deviceId: string;
+  title: string;
+  description: string;
+  slots: { slotIndex: number; imageIds: number[] }[];
+  screenLayout: string;
+  deviceId: string;
 }
 
 interface Props {
@@ -94,23 +97,54 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
 
-  useEffect(() => {
-    if (content && visible) {
-      setTitle(content.title || "");
-      setDescription(content.description || "");
-      setSelectedLayout(content.screenLayout || "");
-      const imageIds = content.images?.map((img: any) => img.imageId) || [];
-      setSelectedImageIds(imageIds);
-      const cfg = getLayoutConfig(content.screenLayout);
+useEffect(() => {
+  if (content && visible) {
+    setTitle(content.title || "");
+    setDescription(content.description || "");
+    setSelectedLayout(content.screenLayout || "");
+
+    const cfg = getLayoutConfig(content.screenLayout);
+
+    // ✅ NEW: handle slots-based structure
+    if (content.slots && Array.isArray(content.slots)) {
+      // Flatten all imageIds for selection modal
+      const allImageIds = content.slots.flatMap((s: any) => s.imageIds || []);
+      setSelectedImageIds(allImageIds);
+
       if (cfg) {
         const asgn = new Array(cfg.slots).fill(null);
-        content.images?.forEach((img: any, idx: number) => { if (idx < asgn.length) asgn[idx] = img.imageId; });
+
+        content.slots.forEach((slot: any) => {
+          const idx = slot.slotIndex;
+
+          // ⚠️ since your UI supports only ONE image per slot (DraggableSlot)
+          // we take the FIRST image
+          if (slot.imageIds?.length > 0 && idx < asgn.length) {
+            asgn[idx] = slot.imageIds[0];
+          }
+        });
+
         setSlotAssignment(asgn);
-      } else {
-        setSlotAssignment(imageIds.map((id: number) => id));
       }
     }
-  }, [content, visible]);
+
+    // ✅ fallback (old structure support)
+    else if (content.images && Array.isArray(content.images)) {
+      const imageIds = content.images.map((img: any) => img.imageId);
+      setSelectedImageIds(imageIds);
+
+      if (cfg) {
+        const asgn = new Array(cfg.slots).fill(null);
+        content.images.forEach((img: any, idx: number) => {
+          if (idx < asgn.length) asgn[idx] = img.imageId;
+        });
+        setSlotAssignment(asgn);
+      } else {
+        setSlotAssignment(imageIds);
+      }
+    }
+  }
+}, [content, visible]);
 
   // Sync slots when images change
   useEffect(() => {
@@ -142,13 +176,23 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
     setSlotAssignment((prev) => { const next = [...prev]; next[idx] = null; return next; });
   };
 
-  const handleSave = async () => {
-    const imageIds = slotAssignment.filter((id): id is number => id !== null);
-    setSaving(true);
-    await onSend({ title, description, imageIds, screenLayout: selectedLayout, deviceId });
-    setSaving(false);
-    onClose();
-  };
+const handleSave = async () => {
+  const slots = slotAssignment.map((id, index) => ({
+    slotIndex: index,
+    imageIds: id !== null ? [id] : [],
+  }));
+
+  setSaving(true);
+  await onSend({
+    title,
+    description,
+    screenLayout: selectedLayout,
+    deviceId,
+    slots,
+  });
+  setSaving(false);
+  onClose();
+};
 
   if (!content) return null;
   const layoutLabel = getLayoutConfig(selectedLayout)?.label || selectedLayout;

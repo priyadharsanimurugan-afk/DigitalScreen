@@ -1,11 +1,11 @@
-//componenets/layoutGrid.tsx
-
+// components/layoutGrid.tsx
 
 import React from "react";
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, Image, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/app/dashboard.styles";
 import { Orientation } from "@/hooks/useImageOreantation";
+import { LayoutConfig } from "../constants/layout";
 
 export interface ImageItem {
   imageId: number;
@@ -14,8 +14,6 @@ export interface ImageItem {
 }
 
 // ─── LAYOUT MINI PREVIEW ─────────────────────────────────────────────────────
-
-import { LayoutConfig } from "../constants/layout";
 
 export const LayoutMiniPreview = ({
   config,
@@ -61,30 +59,30 @@ export const LayoutMiniPreview = ({
   );
 };
 
-// ─── SLOT COMPONENT ──────────────────────────────────────────────────────────
+// ─── SLOT COMPONENT — supports multiple imageIds ──────────────────────────────
 
 interface SlotProps {
   slotIdx: number;
-  imageId: number | null;
+  imageIds: number[];           // ← array now, not single id
   imageList: ImageItem[];
   orientations?: Map<number, Orientation>;
-  onPress?: (idx: number) => void;
-  onRemove?: (idx: number) => void;
+  onPress?: (idx: number) => void;        // place dragging image
+  onRemove?: (idx: number, imageId: number) => void;  // remove specific image
+  onAdd?: (idx: number) => void;          // open picker for this slot
   isTarget?: boolean;
   compact?: boolean;
-  // When true the image fills the slot (cover); when false it fits (contain)
-  cover?: boolean;
 }
 
 const Slot = ({
-  slotIdx, imageId, imageList, orientations,
-  onPress, onRemove, isTarget, compact, cover = false,
+  slotIdx, imageIds, imageList, orientations,
+  onPress, onRemove, onAdd, isTarget, compact,
 }: SlotProps) => {
-  const img = imageId !== null ? imageList.find((i) => i.imageId === imageId) : null;
+  const images = imageIds
+    .map((id) => imageList.find((i) => i.imageId === id))
+    .filter(Boolean) as ImageItem[];
 
-  // Decide resizeMode based on orientation vs slot shape
-  const orientation = imageId !== null ? orientations?.get(imageId) : undefined;
-  const resizeMode = orientation === "portrait" ? "contain" : "cover";
+  const primaryImg = images[0];
+  const extraCount = images.length - 1;
 
   return (
     <TouchableOpacity
@@ -104,11 +102,11 @@ const Slot = ({
       onPress={() => onPress?.(slotIdx)}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      {img?.imageurl ? (
+      {primaryImg?.imageurl ? (
         <Image
-          source={{ uri: img.imageurl }}
+          source={{ uri: primaryImg.imageurl }}
           style={{ width: "100%", height: "100%" }}
-          resizeMode={resizeMode}
+          resizeMode="cover"
         />
       ) : (
         <View style={{ alignItems: "center", gap: 2 }}>
@@ -124,14 +122,51 @@ const Slot = ({
           )}
         </View>
       )}
-      {img && onRemove && (
+
+      {/* Extra image count badge (e.g. +2) */}
+      {extraCount > 0 && !compact && (
+        <View style={{
+          position: "absolute", bottom: 18, right: 3,
+          backgroundColor: "rgba(0,0,0,0.75)", borderRadius: 99,
+          paddingHorizontal: 5, paddingVertical: 2,
+        }}>
+          <Text style={{ fontSize: 8, color: "#fff", fontFamily: "Poppins_600SemiBold" }}>
+            +{extraCount}
+          </Text>
+        </View>
+      )}
+
+      {/* Remove primary image button */}
+      {primaryImg && onRemove && (
         <TouchableOpacity
           style={{ position: "absolute", top: 3, right: 3, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 99 }}
-          onPress={() => onRemove(slotIdx)}
+          onPress={() => onRemove(slotIdx, primaryImg.imageId)}
         >
           <Ionicons name="close-circle" size={15} color="#fff" />
         </TouchableOpacity>
       )}
+
+      {/* ADD button — always visible on slot, bottom left */}
+      {onAdd && !compact && (
+        <TouchableOpacity
+          style={{
+            position: "absolute",
+            bottom: 3,
+            right: 3,
+            backgroundColor: C.primary,
+            borderRadius: 99,
+            width: 18,
+            height: 18,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => onAdd(slotIdx)}
+        >
+          <Ionicons name="add" size={13} color="#fff" />
+        </TouchableOpacity>
+      )}
+
+      {/* Slot number */}
       {!compact && (
         <View style={{ position: "absolute", bottom: 3, left: 3, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1 }}>
           <Text style={{ fontSize: 8, color: "rgba(255,255,255,0.7)", fontFamily: "Poppins_500Medium" }}>{slotIdx + 1}</Text>
@@ -141,31 +176,17 @@ const Slot = ({
   );
 };
 
-// ─── ORIENTATION-AWARE SLOT BUILDER ──────────────────────────────────────────
-//
-// Key rule (no hardcoding):
-//   A "column with 2 rows" slot appears in: f2 (slots 1+2), 2f (slots 0+1),
-//   t2b1 (slots 0+1 in top row), t1b2 (slots 1+2 in bottom row), and any
-//   regular grid column.
-//
-//   If BOTH images assigned to the two rows of a column are PORTRAIT
-//     → keep 2 separate portrait slots (they fill the column naturally)
-//   If either image is LANDSCAPE (or unknown)
-//     → the landscape image gets flex:2 (spans both rows) and the other slot
-//       is hidden / skipped — the caller adjusts slot assignment accordingly.
-//
-//   This is purely a rendering decision. The slot index array from the parent
-//   is always the source of truth for WHICH image goes WHERE.
-
 // ─── LAYOUT GRID ─────────────────────────────────────────────────────────────
 
 export interface LayoutGridProps {
   layoutValue: string;
-  slots: (number | null)[];
+  // slots is now an array of imageId arrays — one per slot
+  slots: number[][];
   imageList: ImageItem[];
   orientations?: Map<number, Orientation>;
   onSlotPress?: (idx: number) => void;
-  onSlotRemove?: (idx: number) => void;
+  onSlotRemove?: (idx: number, imageId: number) => void;
+  onSlotAdd?: (idx: number) => void;
   activeTarget?: boolean;
   compact?: boolean;
   rows?: number;
@@ -174,181 +195,68 @@ export interface LayoutGridProps {
 
 export const LayoutGrid = ({
   layoutValue, slots, imageList, orientations,
-  onSlotPress, onSlotRemove, activeTarget, compact,
+  onSlotPress, onSlotRemove, onSlotAdd, activeTarget, compact,
   rows = 1, cols = 1,
 }: LayoutGridProps) => {
 
-  // Helper — builds a Slot element
   const S = (idx: number) => (
     <Slot
       key={idx}
       slotIdx={idx}
-      imageId={slots[idx] ?? null}
+      imageIds={slots[idx] ?? []}
       imageList={imageList}
       orientations={orientations}
       onPress={onSlotPress}
       onRemove={onSlotRemove}
+      onAdd={onSlotAdd}
       isTarget={activeTarget}
       compact={compact}
     />
   );
 
-  // ── Orientation helpers ──────────────────────────────────────────────────
-  const getOrientation = (slotIdx: number): Orientation | undefined => {
-    const id = slots[slotIdx];
-    if (id == null) return undefined;
-    return orientations?.get(id);
-  };
-
-  // For a two-row column (slotA = top, slotB = bottom):
-  // Returns whether we should collapse them into one spanning slot.
-  // Rule: if slotA has a landscape image → it spans (hide slotB)
-  //       if slotB has a landscape image → it spans (hide slotA)
-  //       if both portrait → show both separately
-  //       if either is empty → show both (let user fill freely)
-  const shouldSpan = (slotA: number, slotB: number): "A" | "B" | "both" => {
-    const oA = getOrientation(slotA);
-    const oB = getOrientation(slotB);
-    // Both filled
-    if (slots[slotA] !== null && slots[slotB] !== null) {
-      if (oA === "landscape") return "A";
-      if (oB === "landscape") return "B";
-      return "both"; // both portrait → show two rows
-    }
-    // Only A filled
-    if (slots[slotA] !== null && slots[slotB] === null) {
-      if (oA === "landscape") return "A";
-      return "both";
-    }
-    // Only B filled
-    if (slots[slotA] === null && slots[slotB] !== null) {
-      if (oB === "landscape") return "B";
-      return "both";
-    }
-    return "both"; // both empty
-  };
-
-  // ── Render a two-row column orientation-aware ─────────────────────────────
-  const TwoRowCol = ({ idxA, idxB }: { idxA: number; idxB: number }) => {
-    const span = shouldSpan(idxA, idxB);
-    if (span === "A") {
-      // Landscape image A spans full column height
-      return (
-        <View style={{ flex: 1 }}>
-          {S(idxA)}
-          {/* show empty slot B below so user can still place an image */}
-          {slots[idxB] === null && (
-            <Slot
-              slotIdx={idxB}
-              imageId={null}
-              imageList={imageList}
-              orientations={orientations}
-              onPress={onSlotPress}
-              onRemove={onSlotRemove}
-              isTarget={activeTarget}
-              compact={compact}
-            />
-          )}
-        </View>
-      );
-    }
-    if (span === "B") {
-      return (
-        <View style={{ flex: 1 }}>
-          {slots[idxA] === null && (
-            <Slot
-              slotIdx={idxA}
-              imageId={null}
-              imageList={imageList}
-              orientations={orientations}
-              onPress={onSlotPress}
-              onRemove={onSlotRemove}
-              isTarget={activeTarget}
-              compact={compact}
-            />
-          )}
-          {S(idxB)}
-        </View>
-      );
-    }
-    // "both" — two portrait images (or empty slots), each takes half
-    return (
-      <View style={{ flex: 1 }}>
-        {S(idxA)}
-        {S(idxB)}
-      </View>
-    );
-  };
-
-  // ── Layout switch ─────────────────────────────────────────────────────────
   switch (layoutValue) {
-    // Feature Left: slot 0 = big feature (left), slots 1+2 = right column (2 rows)
     case "f2":
       return (
         <View style={{ flex: 1, flexDirection: "row" }}>
           {S(0)}
-          <TwoRowCol idxA={1} idxB={2} />
+          <View style={{ flex: 1 }}>{S(1)}{S(2)}</View>
         </View>
       );
-
-    // Feature Right: slots 0+1 = left column (2 rows), slot 2 = big feature (right)
     case "2f":
       return (
         <View style={{ flex: 1, flexDirection: "row" }}>
-          <TwoRowCol idxA={0} idxB={1} />
+          <View style={{ flex: 1 }}>{S(0)}{S(1)}</View>
           {S(2)}
         </View>
       );
-
-    // Feature Top: slot 0 = big feature (top row), slots 1+2 = bottom row (2 cols)
     case "ft":
       return (
         <View style={{ flex: 1 }}>
           {S(0)}
-          <View style={{ flex: 1, flexDirection: "row" }}>
-            {S(1)}
-            {S(2)}
-          </View>
+          <View style={{ flex: 1, flexDirection: "row" }}>{S(1)}{S(2)}</View>
         </View>
       );
-
-    // Feature Bottom: slots 0+1 = top row (2 cols), slot 2 = big feature (bottom)
     case "fb":
       return (
         <View style={{ flex: 1 }}>
-          <View style={{ flex: 1, flexDirection: "row" }}>
-            {S(0)}
-            {S(1)}
-          </View>
+          <View style={{ flex: 1, flexDirection: "row" }}>{S(0)}{S(1)}</View>
           {S(2)}
         </View>
       );
-
-    // Top 2 Bottom 1
     case "t2b1":
       return (
         <View style={{ flex: 1 }}>
-          <View style={{ flex: 1, flexDirection: "row" }}>
-            {S(0)}
-            {S(1)}
-          </View>
+          <View style={{ flex: 1, flexDirection: "row" }}>{S(0)}{S(1)}</View>
           {S(2)}
         </View>
       );
-
-    // Top 1 Bottom 2
     case "t1b2":
       return (
         <View style={{ flex: 1 }}>
           {S(0)}
-          <View style={{ flex: 1, flexDirection: "row" }}>
-            {S(1)}
-            {S(2)}
-          </View>
+          <View style={{ flex: 1, flexDirection: "row" }}>{S(1)}{S(2)}</View>
         </View>
       );
-
-    // Default: regular grid (rows × cols) — orientation-aware per column
     default:
       return (
         <>
