@@ -89,7 +89,8 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
   const slotSize = Math.min(65, (modalW - 48 - 24) / 3);
 
   const [selectedLayout, setSelectedLayout] = useState("");
-  const [slotAssignment, setSlotAssignment] = useState<(number | null)[]>([]);
+const [slotAssignment, setSlotAssignment] = useState<(number[] | null)[]>([]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -179,7 +180,7 @@ useEffect(() => {
 const handleSave = async () => {
   const slots = slotAssignment.map((id, index) => ({
     slotIndex: index,
-    imageIds: id !== null ? [id] : [],
+    imageIds: id !== null ? id : [],   // ✅ FIXED
   }));
 
   setSaving(true);
