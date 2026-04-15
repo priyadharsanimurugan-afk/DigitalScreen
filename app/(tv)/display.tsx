@@ -4,9 +4,13 @@ import {
   View, Text, Image, StyleSheet, useWindowDimensions,
   Animated, StatusBar, Platform, LayoutChangeEvent,
   PanResponder,
+  TouchableOpacity,
 } from "react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 import { useContent } from "../../hooks/useTvDisplay";
+import { useRouter } from "expo-router";
+import { clearTokens } from "@/services/api";
+import { notifyAuthChange } from "@/utils/authEvents";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -25,6 +29,7 @@ type ImageObject = { imageId: number; imageurl: string; sortOrder: number };
 type Slot = { slotIndex: number; images: ImageObject[] };
 type ScreenLayoutObject = { label: string; value: string; rows: number; cols: number; slots: number };
 type DeviceDisplay = {
+  deviceId: number | undefined;
   id: number; title: string; description: string;
   screenLayout: string | ScreenLayoutObject;
   images?: ImageObject[] | null;
@@ -426,7 +431,16 @@ function DateTimeWidget({ loaded, P }: { loaded: boolean; P: (w: string) => stri
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-function Header({ loaded, P }: { loaded: boolean; P: (w: string) => string }) {
+function Header({
+  loaded,
+  P,
+  onLogoPress,
+}: {
+  loaded: boolean;
+  P: (w: string) => string;
+  onLogoPress: () => void;
+}) {
+
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -437,9 +451,11 @@ function Header({ loaded, P }: { loaded: boolean; P: (w: string) => string }) {
   return (
     <View style={hSt.bar}>
       <View style={hSt.brand}>
-        <View style={hSt.logoBox}>
-          <Image source={require("../../assets/images/logo.png")} style={{ width: 22, height: 22 }} resizeMode="contain" />
-        </View>
+       <TouchableOpacity onPress={onLogoPress}>
+  <View style={hSt.logoBox}>
+    <Image source={require("../../assets/images/logo.png")} style={{ width: 22, height: 22 }} />
+  </View>
+</TouchableOpacity>
         <View>
           <Text style={[hSt.appName, { fontFamily: loaded ? P("700") : undefined }]}>Screenova</Text>
           <View style={hSt.liveRow}>
@@ -558,9 +574,42 @@ export default function TVDisplay() {
 
   const [loaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const P = (w: string) => (({ "400": "Poppins_400Regular", "600": "Poppins_600SemiBold", "700": "Poppins_700Bold" } as any)[w] || "System");
+const router = useRouter();
+const { stopCurrentContent } = useContent();
 
   const { loading, deviceDisplay, fetchDeviceDisplay } = useContent();
   const dd: DeviceDisplay | null = deviceDisplay ? unwrapDisplay(deviceDisplay) : null;
+const lastTapRef = useRef<number>(0);
+
+const handleDoubleTapLogout = async () => {
+  const now = Date.now();
+
+  if (now - lastTapRef.current < 300) {
+    // ✅ DOUBLE TAP DETECTED
+
+    try {
+      if (dd?.id && dd?.deviceId) {
+        await stopCurrentContent(dd.deviceId, dd.id);
+      }
+    } catch (e) {
+      console.log("Stop content failed", e);
+    }
+
+    // ✅ Clear auth (if you store token)
+    // await AsyncStorage.removeItem("token");
+
+    // ✅ Redirect to login
+  await clearTokens();
+
+  // 🔥 2. Notify layout
+  notifyAuthChange();
+
+  // 🔥 3. Go to login
+  router.replace("/login");
+  }
+
+  lastTapRef.current = now;
+};
 
   const transitionTo = useCallback((data: DeviceDisplay) => {
     if (isTransRef.current) { nextContentRef.current = data; return; }
@@ -637,7 +686,8 @@ export default function TVDisplay() {
   return (
     <View style={[st.root, { width: SW, height: SH }]}>
       <StatusBar hidden />
-      <Header loaded={loaded} P={P} />
+   <Header loaded={loaded} P={P} onLogoPress={handleDoubleTapLogout} />
+
       <CorkBoardArea>
         <Animated.View style={{ opacity: fadeAnim, flex: 1, padding: GAP }}>
           {isEmpty ? (
