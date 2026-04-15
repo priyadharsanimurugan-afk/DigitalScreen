@@ -1,13 +1,13 @@
 import { toastConfig } from "@/constants/toastConfig";
 import { initializeTokens } from "@/services/api";
+import { subscribeAuth } from "@/utils/authEvents";
 import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack, useRouter, useSegments } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import Toast from "react-native-toast-message";
-import * as SecureStore from "expo-secure-store";
-import { subscribeAuth } from "@/utils/authEvents";
 
 
 export default function RootLayout() {
@@ -92,6 +92,8 @@ useEffect(() => {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="dashboard" />
+        <Stack.Screen name="sendtv" />
+
         <Stack.Screen name="(tv)" />
       </Stack>
 

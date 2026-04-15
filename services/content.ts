@@ -23,7 +23,7 @@ export interface SendContentRequest {
   title: string;
   description: string;
   screenLayout: string;
-  deviceId: string;
+  deviceId: string | any;
   slots: SlotItem[];  // ← replaces imageIds: number[]
 }
 export interface DeviceLUTItem {

@@ -1,20 +1,19 @@
+import { clearTokens } from '@/services/api';
+import { notifyAuthChange } from '@/utils/authEvents';
+import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, useFonts } from '@expo-google-fonts/poppins';
+import { Ionicons } from '@expo/vector-icons';
+import { usePathname, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   Image,
   Modal,
   Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
   useWindowDimensions,
-  Platform,
+  View
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import { useRouter, usePathname } from 'expo-router';
-import { clearTokens } from '@/services/api';
-import { notifyAuthChange } from '@/utils/authEvents';
 
 const COLORS = {
   primary: '#1E3A8A',
@@ -51,6 +50,8 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', route: '/dashboard' },
+    { id: 'sedntv', label: 'Send to Tv', icon: 'grid-outline', activeIcon: 'grid', route: '/sendtv' },
+
     { id: 'devices', label: 'Devices', icon: 'tv-outline', activeIcon: 'tv', route: '/device' },
     { id: 'media', label: 'Media', icon: 'images-outline', activeIcon: 'images', route: '/media' },
   ];
@@ -59,7 +60,7 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
     return 'AD';
   };
 
-  const handleNavigation = (route: string) => {
+  const handleNavigation = (route: string | any) => {
     router.push(route);
   };
 

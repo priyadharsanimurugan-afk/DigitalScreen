@@ -101,7 +101,7 @@ export const ImageSelectModal = ({
           {/* Header */}
           <View style={s.header}>
             <View>
-              <Text style={s.headerTitle}>Select Images</Text>
+              <Text style={s.headerTitle}>Select Imagess</Text>
               <Text style={s.headerSub}>
                 {selected.length}/{maxSelect} selected
               </Text>

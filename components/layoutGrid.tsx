@@ -1,7 +1,7 @@
 // components/layoutGrid.tsx
 
-import React from "react";
-import { View, Text, Image, TouchableOpacity, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/app/dashboard.styles";
 import { Orientation } from "@/hooks/useImageOreantation";
@@ -25,8 +25,8 @@ export const LayoutMiniPreview = ({
   size?: number;
 }) => {
   const borderColor = isActive ? "rgba(255,255,255,0.8)" : C.border;
-  const cellBg      = isActive ? "rgba(255,255,255,0.15)" : C.surfaceAlt;
-  const cellBorder  = isActive ? "rgba(255,255,255,0.35)" : C.border;
+  const cellBg = isActive ? "rgba(255,255,255,0.15)" : C.surfaceAlt;
+  const cellBorder = isActive ? "rgba(255,255,255,0.35)" : C.border;
 
   const cell = (key: number | string, flex = 1) => (
     <View key={key} style={{ flex, borderWidth: 0.5, borderColor: cellBorder, backgroundColor: cellBg }} />
@@ -34,17 +34,17 @@ export const LayoutMiniPreview = ({
 
   const renderCustom = () => {
     switch (config.value) {
-      case "f2":  return (<View style={{ flex: 1, flexDirection: "row" }}>{cell("a", 2)}<View style={{ flex: 1 }}>{cell("b")}{cell("c")}</View></View>);
-      case "2f":  return (<View style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1 }}>{cell("a")}{cell("b")}</View>{cell("c", 2)}</View>);
-      case "ft":  return (<View style={{ flex: 1 }}>{cell("a", 2)}<View style={{ flex: 1, flexDirection: "row" }}>{cell("b")}{cell("c")}</View></View>);
-      case "fb":  return (<View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{cell("a")}{cell("b")}</View>{cell("c", 2)}</View>);
-      case "t2b1":return (<View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{cell("a")}{cell("b")}</View>{cell("c", 1)}</View>);
-      case "t1b2":return (<View style={{ flex: 1 }}>{cell("a", 1)}<View style={{ flex: 1, flexDirection: "row" }}>{cell("b")}{cell("c")}</View></View>);
+      case "f2": return (<View style={{ flex: 1, flexDirection: "row" }}>{cell("a", 2)}<View style={{ flex: 1 }}>{cell("b")}{cell("c")}</View></View>);
+      case "2f": return (<View style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1 }}>{cell("a")}{cell("b")}</View>{cell("c", 2)}</View>);
+      case "ft": return (<View style={{ flex: 1 }}>{cell("a", 2)}<View style={{ flex: 1, flexDirection: "row" }}>{cell("b")}{cell("c")}</View></View>);
+      case "fb": return (<View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{cell("a")}{cell("b")}</View>{cell("c", 2)}</View>);
+      case "t2b1": return (<View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{cell("a")}{cell("b")}</View>{cell("c", 1)}</View>);
+      case "t1b2": return (<View style={{ flex: 1 }}>{cell("a", 1)}<View style={{ flex: 1, flexDirection: "row" }}>{cell("b")}{cell("c")}</View></View>);
       default: return null;
     }
   };
 
-  const isCustom = ["f2","2f","ft","fb","t2b1","t1b2"].includes(config.value);
+  const isCustom = ["f2", "2f", "ft", "fb", "t2b1", "t1b2"].includes(config.value);
 
   return (
     <View style={{ width: size, height: size, borderWidth: 1.5, borderColor, borderRadius: 5, overflow: "hidden", flexDirection: "column" }}>
@@ -63,113 +63,144 @@ export const LayoutMiniPreview = ({
 
 interface SlotProps {
   slotIdx: number;
-  imageIds: number[];           // ← array now, not single id
+  imageIds: number[];
   imageList: ImageItem[];
   orientations?: Map<number, Orientation>;
-  onPress?: (idx: number) => void;        // place dragging image
-  onRemove?: (idx: number, imageId: number) => void;  // remove specific image
-  onAdd?: (idx: number) => void;          // open picker for this slot
+  onPress?: (idx: number) => void;
+  onRemove?: (idx: number, imageId: number) => void;
+  onAdd?: (idx: number) => void;
+  onReorder?: (slotIdx: number, newOrder: number[]) => void;
   isTarget?: boolean;
   compact?: boolean;
 }
 
 const Slot = ({
-  slotIdx, imageIds, imageList, orientations,
-  onPress, onRemove, onAdd, isTarget, compact,
+  slotIdx,
+  imageIds,
+  imageList,
+  orientations,
+  onPress,
+  onRemove,
+  onAdd,
+  onReorder,
+  isTarget,
+  compact,
 }: SlotProps) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
   const images = imageIds
     .map((id) => imageList.find((i) => i.imageId === id))
     .filter(Boolean) as ImageItem[];
 
-  const primaryImg = images[0];
-  const extraCount = images.length - 1;
+  const currentImage = images[currentImageIndex];
+  const hasMultipleImages = images.length > 1;
+
+  const handleNext = () => {
+    if (currentImageIndex < images.length - 1) {
+      setCurrentImageIndex(currentImageIndex + 1);
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentImageIndex > 0) {
+      setCurrentImageIndex(currentImageIndex - 1);
+    }
+  };
+
+  // Reset index when images change
+  React.useEffect(() => {
+    if (currentImageIndex >= images.length) {
+      setCurrentImageIndex(Math.max(0, images.length - 1));
+    }
+  }, [images.length]);
 
   return (
     <TouchableOpacity
-      style={{
-        flex: 1,
-        margin: compact ? 1 : 2,
-        backgroundColor: "#0A1628",
-        borderRadius: compact ? 3 : 5,
-        overflow: "hidden",
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: isTarget ? 1.5 : 0.5,
-        borderColor: isTarget ? C.primary : "rgba(255,255,255,0.1)",
-        borderStyle: isTarget ? "dashed" : "solid",
-        minHeight: compact ? 0 : 40,
-      }}
+      style={[
+        styles.slotContainer,
+        compact && styles.compactSlot,
+        isTarget && styles.targetSlot
+      ]}
       onPress={() => onPress?.(slotIdx)}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      {primaryImg?.imageurl ? (
-        <Image
-          source={{ uri: primaryImg.imageurl }}
-          style={{ width: "100%", height: "100%" }}
-          resizeMode="cover"
-        />
+      {currentImage?.imageurl ? (
+        <View style={styles.imageWrapper}>
+          <Image
+            source={{ uri: currentImage.imageurl }}
+            style={styles.slotImage}
+            resizeMode="contain" // Changed to contain for full image display
+          />
+          
+          {/* Navigation arrows for multiple images */}
+          {hasMultipleImages && (
+            <>
+              {currentImageIndex > 0 && (
+                <TouchableOpacity
+                  style={[styles.navArrow, styles.leftArrow]}
+                  onPress={handlePrevious}
+                >
+                  <Ionicons name="chevron-back" size={18} color="#fff" />
+                </TouchableOpacity>
+              )}
+              {currentImageIndex < images.length - 1 && (
+                <TouchableOpacity
+                  style={[styles.navArrow, styles.rightArrow]}
+                  onPress={handleNext}
+                >
+                  <Ionicons name="chevron-forward" size={18} color="#fff" />
+                </TouchableOpacity>
+              )}
+              
+              {/* Image counter */}
+              <View style={styles.imageCounter}>
+                <Text style={styles.imageCounterText}>
+                  {currentImageIndex + 1}/{images.length}
+                </Text>
+              </View>
+            </>
+          )}
+
+          {/* Remove button */}
+          {onRemove && (
+            <TouchableOpacity
+              style={styles.removeButton}
+              onPress={() => onRemove(slotIdx, currentImage.imageId)}
+            >
+              <Ionicons name="close-circle" size={20} color="#EF4444" />
+            </TouchableOpacity>
+          )}
+        </View>
       ) : (
-        <View style={{ alignItems: "center", gap: 2 }}>
+        <View style={styles.emptySlot}>
           <Ionicons
             name={isTarget ? "add-circle-outline" : "image-outline"}
-            size={compact ? 10 : 18}
+            size={compact ? 16 : 32}
             color={isTarget ? C.primary : "rgba(148,163,184,0.4)"}
           />
           {!compact && (
-            <Text style={{ fontSize: 9, color: "rgba(148,163,184,0.5)", fontFamily: "Poppins_400Regular" }}>
-              {isTarget ? "Tap to place" : `Slot ${slotIdx + 1}`}
+            <Text style={styles.emptySlotText}>
+              {isTarget ? "Tap to place" : "Empty slot"}
             </Text>
           )}
         </View>
       )}
 
-      {/* Extra image count badge (e.g. +2) */}
-      {extraCount > 0 && !compact && (
-        <View style={{
-          position: "absolute", bottom: 18, right: 3,
-          backgroundColor: "rgba(0,0,0,0.75)", borderRadius: 99,
-          paddingHorizontal: 5, paddingVertical: 2,
-        }}>
-          <Text style={{ fontSize: 8, color: "#fff", fontFamily: "Poppins_600SemiBold" }}>
-            +{extraCount}
-          </Text>
-        </View>
-      )}
-
-      {/* Remove primary image button */}
-      {primaryImg && onRemove && (
-        <TouchableOpacity
-          style={{ position: "absolute", top: 3, right: 3, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 99 }}
-          onPress={() => onRemove(slotIdx, primaryImg.imageId)}
-        >
-          <Ionicons name="close-circle" size={15} color="#fff" />
-        </TouchableOpacity>
-      )}
-
-      {/* ADD button — always visible on slot, bottom left */}
+      {/* ADD button */}
       {onAdd && !compact && (
         <TouchableOpacity
-          style={{
-            position: "absolute",
-            bottom: 3,
-            right: 3,
-            backgroundColor: C.primary,
-            borderRadius: 99,
-            width: 18,
-            height: 18,
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          style={styles.addButton}
           onPress={() => onAdd(slotIdx)}
         >
-          <Ionicons name="add" size={13} color="#fff" />
+          <Ionicons name="add" size={16} color="#fff" />
         </TouchableOpacity>
       )}
 
-      {/* Slot number */}
-      {!compact && (
-        <View style={{ position: "absolute", bottom: 3, left: 3, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1 }}>
-          <Text style={{ fontSize: 8, color: "rgba(255,255,255,0.7)", fontFamily: "Poppins_500Medium" }}>{slotIdx + 1}</Text>
+      {/* Multiple images indicator */}
+      {hasMultipleImages && !compact && (
+        <View style={styles.multipleIndicator}>
+          <Ionicons name="images-outline" size={12} color="#fff" />
+          <Text style={styles.multipleIndicatorText}>{images.length}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -180,13 +211,13 @@ const Slot = ({
 
 export interface LayoutGridProps {
   layoutValue: string;
-  // slots is now an array of imageId arrays — one per slot
   slots: number[][];
   imageList: ImageItem[];
   orientations?: Map<number, Orientation>;
   onSlotPress?: (idx: number) => void;
   onSlotRemove?: (idx: number, imageId: number) => void;
   onSlotAdd?: (idx: number) => void;
+  onSlotReorder?: (slotIdx: number, newOrder: number[]) => void;
   activeTarget?: boolean;
   compact?: boolean;
   rows?: number;
@@ -194,11 +225,19 @@ export interface LayoutGridProps {
 }
 
 export const LayoutGrid = ({
-  layoutValue, slots, imageList, orientations,
-  onSlotPress, onSlotRemove, onSlotAdd, activeTarget, compact,
-  rows = 1, cols = 1,
+  layoutValue,
+  slots,
+  imageList,
+  orientations,
+  onSlotPress,
+  onSlotRemove,
+  onSlotAdd,
+  onSlotReorder,
+  activeTarget,
+  compact,
+  rows = 1,
+  cols = 1,
 }: LayoutGridProps) => {
-
   const S = (idx: number) => (
     <Slot
       key={idx}
@@ -209,6 +248,7 @@ export const LayoutGrid = ({
       onPress={onSlotPress}
       onRemove={onSlotRemove}
       onAdd={onSlotAdd}
+      onReorder={onSlotReorder}
       isTarget={activeTarget}
       compact={compact}
     />
@@ -218,7 +258,7 @@ export const LayoutGrid = ({
     case "f2":
       return (
         <View style={{ flex: 1, flexDirection: "row" }}>
-          {S(0)}
+          <View style={{ flex: 2 }}>{S(0)}</View>
           <View style={{ flex: 1 }}>{S(1)}{S(2)}</View>
         </View>
       );
@@ -226,13 +266,13 @@ export const LayoutGrid = ({
       return (
         <View style={{ flex: 1, flexDirection: "row" }}>
           <View style={{ flex: 1 }}>{S(0)}{S(1)}</View>
-          {S(2)}
+          <View style={{ flex: 2 }}>{S(2)}</View>
         </View>
       );
     case "ft":
       return (
         <View style={{ flex: 1 }}>
-          {S(0)}
+          <View style={{ flex: 2 }}>{S(0)}</View>
           <View style={{ flex: 1, flexDirection: "row" }}>{S(1)}{S(2)}</View>
         </View>
       );
@@ -240,20 +280,20 @@ export const LayoutGrid = ({
       return (
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1, flexDirection: "row" }}>{S(0)}{S(1)}</View>
-          {S(2)}
+          <View style={{ flex: 2 }}>{S(2)}</View>
         </View>
       );
     case "t2b1":
       return (
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1, flexDirection: "row" }}>{S(0)}{S(1)}</View>
-          {S(2)}
+          <View style={{ flex: 1 }}>{S(2)}</View>
         </View>
       );
     case "t1b2":
       return (
         <View style={{ flex: 1 }}>
-          {S(0)}
+          <View style={{ flex: 1 }}>{S(0)}</View>
           <View style={{ flex: 1, flexDirection: "row" }}>{S(1)}{S(2)}</View>
         </View>
       );
@@ -269,3 +309,124 @@ export const LayoutGrid = ({
       );
   }
 };
+
+// ─── STYLES ─────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  slotContainer: {
+    flex: 1,
+    margin: 2,
+    backgroundColor: "#0A1628",
+    borderRadius: 5,
+    overflow: "hidden",
+    borderWidth: 0.5,
+    borderColor: "rgba(255,255,255,0.1)",
+    minHeight: 40,
+  },
+  compactSlot: {
+    margin: 1,
+    borderRadius: 3,
+    minHeight: 0,
+  },
+  targetSlot: {
+    borderWidth: 2,
+    borderColor: C.primary,
+    borderStyle: "dashed",
+  },
+  imageWrapper: {
+    width: "100%",
+    height: "100%",
+    position: "relative",
+    backgroundColor: "#0A1628",
+  },
+  slotImage: {
+    width: "100%",
+    height: "100%",
+  },
+  emptySlot: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 4,
+  },
+  emptySlotText: {
+    fontSize: 10,
+    color: "rgba(148,163,184,0.5)",
+    fontFamily: "Poppins_400Regular",
+  },
+  removeButton: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 99,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  addButton: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    backgroundColor: C.primary,
+    borderRadius: 99,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  navArrow: {
+    position: "absolute",
+    top: "50%",
+    transform: [{ translateY: -16 }],
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 99,
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 5,
+  },
+  leftArrow: {
+    left: 4,
+  },
+  rightArrow: {
+    right: 4,
+  },
+  imageCounter: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    zIndex: 5,
+  },
+  imageCounterText: {
+    color: "#fff",
+    fontSize: 10,
+    fontFamily: "Poppins_600SemiBold",
+  },
+  multipleIndicator: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    zIndex: 5,
+  },
+  multipleIndicatorText: {
+    color: "#fff",
+    fontSize: 10,
+    fontFamily: "Poppins_600SemiBold",
+  },
+});

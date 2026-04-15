@@ -224,7 +224,7 @@ const handleCreateDevice = async (data: any) => {
   const StatusBadge = ({ status, isLive }: { status: string; isLive: boolean }) => {
     const color = isLive
       ? { bg: "#DCFCE7", text: "#166534", label: "Live" }
-      : status === "online"
+      : status === "Offline"
       ? { bg: "#E0F2FE", text: "#1E3A8A", label: "Online" }
       : { bg: "#FEE2E2", text: "#991B1B", label: "Offline" };
 

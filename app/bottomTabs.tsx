@@ -1,17 +1,17 @@
-//`app/bottomTabs.tsx
+// `app/bottomTabs.tsx
 
+import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, useFonts } from '@expo-google-fonts/poppins';
+import { Ionicons } from '@expo/vector-icons';
+import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
+  Platform,
   StyleSheet,
+  Text,
   TouchableOpacity,
   useWindowDimensions,
-  Platform,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, usePathname } from 'expo-router';
-import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 
 const COLORS = {
   primary: '#1E3A8A',
@@ -40,27 +40,34 @@ export default function BottomTabs() {
     { 
       id: 'dashboard', 
       label: 'Dashboard', 
-      icon: 'grid-outline', 
-      activeIcon: 'grid',
+      icon: 'grid-outline' as const, 
+      activeIcon: 'grid' as const,
       route: '/dashboard' 
+    },
+    { 
+      id: 'sendtv', 
+      label: 'Send To Tv', 
+      icon: 'send-outline' as const, 
+      activeIcon: 'send' as const,
+      route: '/sendtv' 
     },
     { 
       id: 'devices', 
       label: 'Devices', 
-      icon: 'tv-outline', 
-      activeIcon: 'tv',
+      icon: 'tv-outline' as const, 
+      activeIcon: 'tv' as const,
       route: '/device' 
     },
     { 
       id: 'media', 
       label: 'Media', 
-      icon: 'images-outline', 
-      activeIcon: 'images',
+      icon: 'images-outline' as const, 
+      activeIcon: 'images' as const,
       route: '/media' 
     },
   ];
 
-  const handleNavigation = (route: string) => {
+  const handleNavigation = (route: string | any) => {
     router.push(route);
   };
 
@@ -75,19 +82,21 @@ export default function BottomTabs() {
           return (
             <TouchableOpacity
               key={tab.id}
-              style={[styles.tab, isActive && styles.tabActive]}
+              style={styles.tab}
               onPress={() => handleNavigation(tab.route)}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name={isActive ? tab.activeIcon : tab.icon}
-                size={24}
-                color={isActive ? COLORS.primary : COLORS.textLight}
-              />
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
-                {tab.label}
-              </Text>
-              {isActive && <View style={styles.activeDot} />}
+              <View style={styles.tabContent}>
+                <Ionicons
+                  name={isActive ? tab.activeIcon : tab.icon}
+                  size={24}
+                  color={isActive ? COLORS.primary : COLORS.textLight}
+                />
+                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                  {tab.label}
+                </Text>
+                {isActive && <View style={styles.activeIndicator} />}
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -113,23 +122,24 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    justifyContent: 'space-evenly',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    position: 'relative',
   },
-  tabActive: {
-    // No background to keep it clean
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    paddingHorizontal: 8,
   },
   tabLabel: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.textLight,
     marginTop: 4,
   },
@@ -137,13 +147,14 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontFamily: 'Poppins_600SemiBold',
   },
-  activeDot: {
+  activeIndicator: {
     position: 'absolute',
-    top: -8,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    bottom: -16,
+    width: '100%',
+    height: 3,
     backgroundColor: COLORS.primary,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
   },
   safeArea: {
     height: 34, // For iPhone home indicator
