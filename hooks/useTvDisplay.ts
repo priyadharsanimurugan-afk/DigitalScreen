@@ -2,31 +2,57 @@
 import { useState, useEffect } from "react";
 import {
   getDeviceDisplay,
-  stopContent, // ✅ IMPORT THIS
+  stopContent,
   DeviceDisplay,
 } from "@/services/content";
 
+// ✅ Add this type
+export type DeviceDisplayResponse = {
+  message: string;
+  data: DeviceDisplay | null;
+};
+
 export const useContent = () => {
   const [loading, setLoading] = useState(false);
-  const [deviceDisplay, setDeviceDisplay] = useState<DeviceDisplay | null>(null);
+
+  // ✅ FIXED TYPE
+  const [deviceDisplay, setDeviceDisplay] =
+    useState<DeviceDisplayResponse | null>(null);
 
   // ─── Fetch Device Display ─────────────────────────────
-  const fetchDeviceDisplay = async (): Promise<DeviceDisplay | null> => {
+  const fetchDeviceDisplay = async (): Promise<DeviceDisplayResponse | null> => {
     try {
       setLoading(true);
-      const data = await getDeviceDisplay();
-      setDeviceDisplay(data);
-      return data;
+
+      const res = await getDeviceDisplay(); // API call
+
+      // ✅ Ensure correct shape
+      const response: DeviceDisplayResponse = {
+        message: res?.message ?? "success",
+        data: res?.data ?? null,
+      };
+
+      setDeviceDisplay(response);
+      return response;
+
     } catch (error) {
       console.error("Failed to fetch device display:", error);
-      setDeviceDisplay(null);
-      return null;
+
+      // ✅ Proper fallback
+      const fallback: DeviceDisplayResponse = {
+        message: "error",
+        data: null,
+      };
+
+      setDeviceDisplay(fallback);
+      return fallback;
+
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Stop Current Content (SIMPLIFIED ✅) ─────────────
+  // ─── Stop Current Content ─────────────────────────────
   const stopCurrentContent = async (
     deviceId: string,
     contentId: number
@@ -43,9 +69,11 @@ export const useContent = () => {
 
       console.log("❌ Failed to stop content");
       return { success: false };
+
     } catch (error) {
       console.error("Stop content error:", error);
       return { success: false };
+
     } finally {
       setLoading(false);
     }
@@ -58,8 +86,8 @@ export const useContent = () => {
 
   return {
     loading,
-    deviceDisplay,
+    deviceDisplay,          // ✅ NOW HAS message + data
     fetchDeviceDisplay,
-    stopCurrentContent, // ✅ EXPORT THIS
+    stopCurrentContent,
   };
 };

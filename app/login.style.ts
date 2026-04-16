@@ -205,4 +205,28 @@ inp: {
     fontSize: 12,
     color: COLORS.secondary,
   },
+
+  passwordContainer: {
+  position: 'relative',
+  width: '100%',
+},
+
+passwordInput: {
+  paddingRight: 50, // Make room for the eye icon
+},
+
+eyeButton: {
+  position: 'absolute',
+  right: 12,
+  top: 0,
+  bottom: 0,
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 8,
+},
+
+eyeIcon: {
+  fontSize: 20,
+  opacity: 0.6,
+},
 });

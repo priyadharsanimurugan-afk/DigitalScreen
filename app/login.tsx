@@ -11,13 +11,14 @@ import { loginStyles as s } from "@/app/login.style";
 import { useLogin } from "@/hooks/useLoginAuth";
 import { clearRememberedCredentials, getRememberedCredentials, saveRememberedCredentials } from "@/utils/tokenStorage";
 import { notifyAuthChange } from "@/utils/authEvents";
-
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Login() {
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const [foc, setFoc] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const pwRef = useRef<TextInput>(null);
   const idRef = useRef<TextInput>(null);
   const { width } = useWindowDimensions();
@@ -31,7 +32,7 @@ export default function Login() {
 
   const { login, loading, errors } = useLogin();
 
-    useEffect(() => {
+  useEffect(() => {
     const loadCredentials = async () => {
       const creds = await getRememberedCredentials();
       if (creds.loginId) {
@@ -59,11 +60,10 @@ export default function Login() {
     }
 
     // Navigate based on role
-   // Just go to root → layout will handle redirect
-     // 🔥 CRITICAL FIX
-  notifyAuthChange();
-router.replace("/");
-
+    // Just go to root → layout will handle redirect
+    // 🔥 CRITICAL FIX
+    notifyAuthChange();
+    router.replace("/");
   };
 
   // Load saved credentials if remember me was checked
@@ -112,11 +112,14 @@ router.replace("/");
   }, [errors]);
 
   if (!loaded) return null;
-
-
-
-  const content = (
-    <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+  const Wrapper = mobile ? ScrollView : View;
+const content = (
+  <Wrapper
+    {...(mobile
+      ? { contentContainerStyle: s.scroll, keyboardShouldPersistTaps: "handled" }
+      : {})}
+    style={!mobile ? s.scroll : undefined}
+  >
       <View style={s.bg}>
         <View style={s.blob1} />
         <View style={s.blob2} />
@@ -191,25 +194,40 @@ router.replace("/");
             {/* Password Input */}
             <View style={s.fWrap}>
               <Text style={[s.lbl, { fontFamily: FONTS.semiBold }]}>Password</Text>
-              <TextInput
-                ref={pwRef}
-                style={[
-                  s.inp,
-                  errors.pw ? s.inpError : foc === "pw" && s.inpF,
-                  { fontFamily: FONTS.regular }
-                ]}
-                placeholder="••••••••"
-                placeholderTextColor={COLORS.textMuted}
-                secureTextEntry={true}
-                value={pw}
-                onChangeText={setPw}
-                onFocus={() => setFoc("pw")}
-                onBlur={() => setFoc(null)}
-                onSubmitEditing={handleLogin}
-                returnKeyType="done"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={s.passwordContainer}>
+                <TextInput
+                  ref={pwRef}
+                  style={[
+                    s.inp,
+                    s.passwordInput,
+                    errors.pw ? s.inpError : foc === "pw" && s.inpF,
+                    { fontFamily: FONTS.regular }
+                  ]}
+                  placeholder="••••••••"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showPassword}
+                  value={pw}
+                  onChangeText={setPw}
+                  onFocus={() => setFoc("pw")}
+                  onBlur={() => setFoc(null)}
+                  onSubmitEditing={handleLogin}
+                  returnKeyType="done"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+               <TouchableOpacity 
+                style={s.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color="#afbfd1"
+                />
+              </TouchableOpacity>
+
+              </View>
               {errors.pw && (
                 <Text style={[s.fieldError, { fontFamily: FONTS.regular }]}>
                   {errors.pw}
@@ -217,7 +235,7 @@ router.replace("/");
               )}
             </View>
 
-            {/* Remember Me & Forgot Password Row */}
+            {/* Remember Me Only */}
             <View style={s.row}>
               <TouchableOpacity 
                 style={s.checkboxContainer} 
@@ -231,12 +249,6 @@ router.replace("/");
                 </View>
                 <Text style={[s.rememberText, { fontFamily: FONTS.regular }]}>
                   Remember me
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={s.forgot}>
-                <Text style={[s.forgotT, { fontFamily: FONTS.semiBold }]}>
-                  Forgot password?
                 </Text>
               </TouchableOpacity>
             </View>
@@ -256,7 +268,7 @@ router.replace("/");
           </View>
         </View>
       </View>
-    </ScrollView>
+   </Wrapper>
   );
 
   if (Platform.OS === "web") return <View style={s.root}>{content}</View>;

@@ -17,11 +17,14 @@ interface Props {
   imageList: ImageItem[];
   selectedImageIds: number[];
   layouts: LayoutConfig[];
+  initialSlotAssignment?: number[][];  // 👈 ADD THIS
+  initialLayout?: string;               // 👈 ADD THIS
 }
-
 export const LayoutArrangeModal = ({
   visible, onClose, onConfirm,
   imageList, selectedImageIds, layouts = [],
+  initialSlotAssignment = [],  // 👈 ADD THIS
+  initialLayout = "",          // 👈 ADD THIS
 }: Props) => {
   const { width, height } = useWindowDimensions();
   
@@ -56,28 +59,80 @@ export const LayoutArrangeModal = ({
   );
 
   useEffect(() => {
+    if (!visible) return;
+    
+    // If we have existing slot assignment, use it
+    if (initialSlotAssignment && initialSlotAssignment.length > 0 && initialLayout) {
+      const layoutCfg = layouts.find(l => l.value === initialLayout);
+      if (layoutCfg) {
+        setSelectedLayout(layoutCfg);
+        setSlots(initialSlotAssignment.map(slot => [...slot])); // Create a copy
+        
+        // Get all unique image IDs from slots
+        const allImageIds = initialSlotAssignment.flat();
+        setLocalSelectedIds([...new Set(allImageIds)]);
+        
+        // Set layout page to show selected layout
+        const selectedIndex = layouts.findIndex(l => l.value === initialLayout);
+        setLayoutPage(Math.floor(selectedIndex / layoutsPerPage));
+        return;
+      }
+    }
+    
+    // Fallback to default behavior
     if (layouts && layouts.length > 0 && !selectedLayout) {
       setSelectedLayout(layouts[0]);
-      // Set initial page to show selected layout
       const selectedIndex = layouts.findIndex(l => l.value === layouts[0].value);
       setLayoutPage(Math.floor(selectedIndex / layoutsPerPage));
     }
-  }, [layouts]);
+  }, [visible, initialSlotAssignment, initialLayout, layouts]);
 
   useEffect(() => {
     setLocalSelectedIds(selectedImageIds);
   }, [selectedImageIds]);
 
+  // 👇 UPDATE this useEffect to preserve existing slot assignments when changing layouts:
   useEffect(() => {
     if (!selectedLayout) return;
-    const next: number[][] = Array.from({ length: selectedLayout.slots }, () => []);
-    localSelectedIds.forEach((id, i) => {
-      const slotIdx = i % selectedLayout.slots;
-      next[slotIdx].push(id);
-    });
-    setSlots(next);
+    
+    // Check if we're coming from an existing assignment with the same layout
+    if (initialSlotAssignment && 
+        initialSlotAssignment.length > 0 && 
+        initialLayout === selectedLayout.value) {
+      // Keep existing slots
+      setSlots(initialSlotAssignment.map(slot => [...slot]));
+    } else {
+      // Create new slot assignment, trying to preserve images where possible
+      const next: number[][] = Array.from({ length: selectedLayout.slots }, (_, idx) => {
+        // If this slot index existed before and had images, keep them
+        if (idx < slots.length && slots[idx].length > 0) {
+          return [...slots[idx]];
+        }
+        return [];
+      });
+      
+      // If we have localSelectedIds but empty slots, distribute them
+      const allPlacedIds = next.flat();
+      const unplacedIds = localSelectedIds.filter(id => !allPlacedIds.includes(id));
+      
+      if (unplacedIds.length > 0) {
+        // Distribute unplaced images across slots
+        unplacedIds.forEach((id, i) => {
+          const slotIdx = i % selectedLayout.slots;
+          next[slotIdx].push(id);
+        });
+      }
+      
+      setSlots(next);
+    }
+    
     setDraggingId(null);
   }, [selectedLayout, localSelectedIds]);
+
+  // Keep the existing useEffect for selectedImageIds
+  useEffect(() => {
+    setLocalSelectedIds(selectedImageIds);
+  }, [selectedImageIds])
 
   const handleSlotPress = (slotIdx: number) => {
     if (draggingId === null) return;

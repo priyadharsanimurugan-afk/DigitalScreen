@@ -102,58 +102,64 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
   const [layoutModalVisible, setLayoutModalVisible] = useState(false);
   const [selectedImageIds, setSelectedImageIds] = useState<number[]>([]);
 
-  useEffect(() => {
-    if (content && visible) {
-      setTitle(content.title || "");
-      setDescription(content.description || "");
-      setSelectedLayout(content.screenLayout || "");
+const [isLoading, setIsLoading] = useState(true);
 
-      const cfg = getLayoutConfig(content.screenLayout);
-      
-      // Handle slots-based structure (supports multiple images per slot)
-      if (content.slots && Array.isArray(content.slots)) {
-        const allImageIds = content.slots.flatMap((s: any) => s.imageIds || []);
-        setSelectedImageIds([...new Set(allImageIds)]);
-        
-        if (cfg) {
-          const asgn: number[][] = Array.from({ length: cfg.slots }, () => []);
-          content.slots.forEach((slot: any) => {
-            if (slot.slotIndex < asgn.length && slot.imageIds?.length > 0) {
-              asgn[slot.slotIndex] = slot.imageIds;
-            }
-          });
-          setSlotAssignment(asgn);
-        } else {
-          setSlotAssignment([]);
+// Update the useEffect to handle loading state
+useEffect(() => {
+  if (!content || !visible) return;
+
+  console.log("Content received in modal:", JSON.stringify(content, null, 2));
+
+  setTitle(content.title || "");
+  setDescription(content.description || "");
+  setSelectedLayout(content.screenLayout || "");
+
+  const cfg = layouts.find(l => l.value === content.screenLayout);
+
+  if (!cfg) {
+    console.log("❌ Layout not found:", content.screenLayout);
+    setSlotAssignment([]);
+    setIsLoading(false);
+    return;
+  }
+
+  const totalSlots = cfg.slots;
+
+  // ✅ HANDLE SLOTS
+  if (content.slots?.length) {
+    const asgn: number[][] = Array.from({ length: totalSlots }, () => []);
+
+    content.slots.forEach((slot: any) => {
+      if (slot.slotIndex < totalSlots) {
+        if (slot.imageIds?.length) {
+          asgn[slot.slotIndex] = [...slot.imageIds];
+        } else if (slot.images?.length) {
+          asgn[slot.slotIndex] = slot.images
+            .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+            .map((img: any) => img.imageId);
         }
-      } 
-      // Fallback for old structure
-      else if (content.images && Array.isArray(content.images)) {
-        const imageIds = content.images.map((img: any) => img.imageId);
-        setSelectedImageIds(imageIds);
-        
-        if (cfg) {
-          const asgn: number[][] = Array.from({ length: cfg.slots }, () => []);
-          content.images.forEach((img: any, idx: number) => {
-            if (idx < asgn.length) asgn[idx] = [img.imageId];
-          });
-          setSlotAssignment(asgn);
-        } else {
-          setSlotAssignment([]);
-        }
-      } else if (cfg) {
-        setSlotAssignment(Array.from({ length: cfg.slots }, () => []));
       }
-    }
-  }, [content, visible]);
-
-  const handleSwap = (from: number, to: number) => {
-    setSlotAssignment((prev) => {
-      const next = [...prev];
-      [next[from], next[to]] = [next[to], next[from]];
-      return next;
     });
-  };
+
+    console.log("✅ FINAL Slot assignment:", asgn);
+    setSlotAssignment(asgn);
+    return;
+  }
+
+  // fallback
+  setSlotAssignment(Array.from({ length: totalSlots }, () => []));
+}, [content, visible, layouts]);
+
+
+
+
+useEffect(() => {
+  if (slotAssignment.length > 0) {
+    setIsLoading(false);
+  }
+}, [slotAssignment]);
+console.log("RENDER slotAssignment:", slotAssignment);
+
 
   const handleRemoveSlot = (idx: number) => {
     setSlotAssignment((prev) => {
@@ -163,6 +169,13 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
     });
   };
 
+  const handleSwap = (from: number, to: number) => {
+    setSlotAssignment((prev) => {
+      const next = [...prev];
+      [next[from], next[to]] = [next[to], next[from]];
+      return next;
+    });
+  };
   const handleSave = async () => {
     const slots = slotAssignment.map((imageIds, index) => ({ 
       slotIndex: index, 
@@ -179,6 +192,36 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
   const layoutLabel = getLayoutConfig(selectedLayout)?.label || selectedLayout;
   const placedCount = slotAssignment.filter(ids => ids.length > 0).length;
   const totalImages = slotAssignment.flat().length;
+// In liveContentEdit.tsx, update the slotsForPreview generation:
+
+const slotsForPreview = React.useMemo(() => {
+  if (!slotAssignment.length) return [];
+  
+  // TVNoticeBoard/LayoutGrid expects imageIds (array of numbers), not image objects
+  return slotAssignment.map((imageIds, index) => ({
+    slotIndex: index,
+    imageIds: imageIds // Pass the IDs directly, not the image objects
+  }));
+}, [slotAssignment])
+
+console.log("imageList in modal:", imageList);
+
+const finalImageList = React.useMemo(() => {
+  const missing = content?.slots?.flatMap((slot: any) =>
+    (slot.images || []).map((img: any) => ({
+      imageId: img.imageId,
+      imageName: img.imageName,
+      imageurl: `https://digisignapi.lemeniz.com/api/images/file/${img.imageId}`
+    }))
+  ) || [];
+
+  return [
+    ...imageList,
+    ...missing.filter(
+      (img: any) => !imageList.some(i => i.imageId === img.imageId)
+    )
+  ];
+}, [imageList, content]);
 
   return (
     <>
@@ -239,28 +282,30 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
                   </View>
 
                   {/* Slots Section */}
-                  {slotAssignment.length > 0 && (
-                    <View style={[s.section, { padding: isMobile ? 10 : 12 }]}>
-                      <Text style={[s.sectionLabel, { fontSize: isMobile ? 9 : 10, marginBottom: 8 }]}>
-                        SLOTS ({placedCount} filled)
-                      </Text>
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-                        {slotAssignment.map((imageIds, idx) => (
-                          <DraggableSlot 
-                            key={idx} 
-                            slotIndex={idx} 
-                            imageIds={imageIds} 
-                            imageList={imageList}
-                            totalSlots={slotAssignment.length} 
-                            slotSize={slotSize}
-                            onSwap={handleSwap} 
-                            onRemove={handleRemoveSlot} 
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
+            
+{slotAssignment.length > 0 && (
+  <View style={[s.section, { padding: isMobile ? 10 : 12 }]}>
+    <Text style={[s.sectionLabel, { fontSize: isMobile ? 9 : 10, marginBottom: 8 }]}>
+      SLOTS ({placedCount} filled)
+    </Text>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+      {slotAssignment.map((imageIds, idx) => (
+        <DraggableSlot 
+          key={idx} 
+          slotIndex={idx} 
+          imageIds={imageIds} 
+          imageList={finalImageList}
+          totalSlots={slotAssignment.length} 
+          slotSize={slotSize}
+          onSwap={handleSwap} 
+          onRemove={handleRemoveSlot} 
+        />
+      ))}
+    </View>
+  </View>
+)}
+    
+    
                   {/* Title & Description */}
                   <View style={[s.section, { padding: isMobile ? 10 : 12 }]}>
                     <Text style={[s.sectionLabel, { fontSize: isMobile ? 9 : 10 }]}>TITLE *</Text>
@@ -286,15 +331,50 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
                 </View>
 
                 {/* Right Column - Preview */}
-                <View style={{ flex: 1 }}>
-                  <View style={[s.section, { padding: isMobile ? 10 : 12 }]}>
-                    <Text style={[s.sectionLabel, { fontSize: isMobile ? 9 : 10, marginBottom: 8 }]}>LIVE PREVIEW</Text>
-                    <TVNoticeBoard 
-                      slotAssignment={slotAssignment} 
-                      imageList={imageList} 
-                      selectedLayout={selectedLayout} 
-                      title={title} 
-                    />
+<View style={{ flex: 1 }}>
+  <View style={[s.section, { padding: isMobile ? 10 : 12 }]}>
+    <Text style={[s.sectionLabel, { fontSize: isMobile ? 9 : 10, marginBottom: 8 }]}>
+      LIVE PREVIEW
+    </Text>
+    
+    {/* Debug info */}
+    <View style={{ backgroundColor: '#E0E7FF', padding: 8, marginBottom: 8, borderRadius: 4 }}>
+      <Text style={{ fontSize: 10, color: '#1E3A8A' }}>
+        Debug: Layout: {selectedLayout || 'none'}, Slots: {slotAssignment.length}, 
+        Images: {slotAssignment.flat().length}, Loading: {isLoading ? 'true' : 'false'}
+      </Text>
+    </View>
+    
+    {!isLoading && selectedLayout && slotAssignment.length > 0 ? (
+<TVNoticeBoard 
+  slotAssignment={slotAssignment}   // ✅ FIXED
+  selectedLayout={selectedLayout}   // ✅ FIXED
+  imageList={finalImageList}
+  title={title}
+/>
+
+
+    ) : (
+      <View style={{ 
+        height: 200, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        gap: 8
+      }}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={C.primary} />
+        ) : (
+          <>
+            <Ionicons name="image-outline" size={32} color="#999" />
+            <Text style={{ color: '#666' }}>
+              {!selectedLayout ? 'No layout selected' : 'No images in slots'}
+            </Text>
+          </>
+        )}
+      </View>
+    )}
                     
                     {/* Summary */}
                     <View style={s.summary}>
@@ -342,20 +422,24 @@ const LiveContentEditModal: React.FC<Props> = ({ visible, onClose, content, imag
         </View>
       </Modal>
 
-      <LayoutArrangeModal
-        visible={layoutModalVisible}
-        onClose={() => setLayoutModalVisible(false)}
-        onConfirm={(layout, asgn) => {
-          setSelectedLayout(layout);
-          setSlotAssignment(asgn);
-          const allImageIds = asgn.flat().filter((id): id is number => id !== null && id !== undefined);
-          setSelectedImageIds([...new Set(allImageIds)]);
-          setLayoutModalVisible(false);
-        }}
-        imageList={imageList}
-        selectedImageIds={selectedImageIds}
-        layouts={layouts}
-      />
+   // In the return statement of LiveContentEditModal, update the LayoutArrangeModal:
+
+<LayoutArrangeModal
+  visible={layoutModalVisible}
+  onClose={() => setLayoutModalVisible(false)}
+  onConfirm={(layout, asgn) => {
+    setSelectedLayout(layout);
+    setSlotAssignment(asgn);
+    const allImageIds = asgn.flat().filter((id): id is number => id !== null && id !== undefined);
+    setSelectedImageIds([...new Set(allImageIds)]);
+    setLayoutModalVisible(false);
+  }}
+  imageList={imageList}
+  selectedImageIds={selectedImageIds}
+  initialSlotAssignment={slotAssignment} // 👈 Pass existing slot assignment
+  initialLayout={selectedLayout} 
+  layouts={layouts}
+/>
     </>
   );
 };

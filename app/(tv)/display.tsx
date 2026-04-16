@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 import { clearTokens } from "@/services/api";
 import { notifyAuthChange } from "@/utils/authEvents";
 import * as ScreenOrientation from 'expo-screen-orientation';
-
+import { getLocation, fetchWeather, WeatherData } from "@/utils/weather";
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
   primary: "#1E3A8A", secondary: "#8B4513",
@@ -38,6 +38,11 @@ type DeviceDisplay = {
   images?: ImageObject[] | null;
   slots?: Slot[];
 };
+type DeviceDisplayResponse = {
+  message: string;
+  data: DeviceDisplay | null;
+};
+
 
 type FeatureLayout = "f2" | "2f" | "ft" | "fb";
 const FEATURE_LAYOUTS: FeatureLayout[] = ["f2","2f","ft","fb"];
@@ -249,21 +254,63 @@ function DateTimeDisplay() {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => string; onPress: () => void }) {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+
+  useEffect(() => {
+    let interval: any;
+
+    async function loadWeather() {
+      const loc = await getLocation();
+      if (!loc) return;
+
+      const w = await fetchWeather(loc);
+      if (w) setWeather(w);
+    }
+
+    loadWeather();
+
+    // refresh every 10 mins
+    interval = setInterval(loadWeather, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <View style={[hSt.bar, { height: HEADER_H, paddingHorizontal: isMobile ? 10 : 20 }]}>
+      
+      {/* LEFT */}
       <TouchableOpacity onPress={onPress} style={hSt.brand}>
         <View style={[hSt.logoBox, { width: isMobile ? 24 : 34, height: isMobile ? 24 : 34 }]}>
           <Image source={require("../../assets/images/logo.png")} style={{ width: isMobile ? 16 : 22, height: isMobile ? 16 : 22 }} />
         </View>
-        <Text style={[hSt.appName, { fontFamily: loaded ? P("700") : undefined, fontSize: isMobile ? 12 : 16 }]}>Screenova</Text>
+        <Text style={[hSt.appName, { fontFamily: loaded ? P("700") : undefined, fontSize: isMobile ? 12 : 16 }]}>
+          Screenova
+        </Text>
       </TouchableOpacity>
+
+      {/* RIGHT */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 8 : 12 }}>
-        <Text style={{ fontSize: isMobile ? 10 : 14, color: C.primary }}>☀️ 24°C</Text>
+
+        {/* 🌦️ WEATHER */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {weather?.icon && (
+            <Image
+              source={{ uri: `https:${weather.icon}` }}
+              style={{ width: isMobile ? 14 : 20, height: isMobile ? 14 : 20 }}
+            />
+          )}
+          <Text style={{ fontSize: isMobile ? 10 : 14, color: C.primary }}>
+            {weather ? `${weather.temp}°C` : "--"}
+          </Text>
+        </View>
+
+        {/* ⏰ TIME */}
         <DateTimeDisplay />
       </View>
     </View>
   );
 }
+
 const hSt = StyleSheet.create({
   bar: { backgroundColor: C.headerBg, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: C.border },
   brand: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -286,15 +333,17 @@ const fSt = StyleSheet.create({
 });
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function TVDisplay() {
   const { width: SW, height: SH } = useWindowDimensions();
   const fade = useRef(new Animated.Value(1)).current;
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [loaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const P = (w: string) => (({ "400": "Poppins_400Regular", "600": "Poppins_600SemiBold", "700": "Poppins_700Bold" } as any)[w] || "System");
+  
   const router = useRouter();
   const { deviceDisplay, fetchDeviceDisplay } = useContent();
-  const dd = deviceDisplay ? unwrapDisplay(deviceDisplay) : null;
+  
   const lastTap = useRef(0);
 
   useEffect(() => {
@@ -307,7 +356,6 @@ export default function TVDisplay() {
   const logout = async () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-   
       await clearTokens();
       notifyAuthChange();
       router.replace("/login");
@@ -316,12 +364,16 @@ export default function TVDisplay() {
   };
 
   const load = useCallback(async () => {
-    const raw = await fetchDeviceDisplay().catch(() => null);
-    const data = unwrapDisplay(raw);
-    if (data) {
-      Animated.timing(fade, { toValue: 0.3, duration: 200, useNativeDriver: true }).start(() => {
-        Animated.timing(fade, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-      });
+    try {
+      const raw = await fetchDeviceDisplay();
+      
+      // Handle "No active content" case
+      if (raw?.message === "No active content" || raw?.data === null) {
+        // We will handle this in render as empty content
+        return;
+      }
+    } catch (err) {
+      console.log("Fetch error:", err);
     }
   }, []);
 
@@ -329,46 +381,78 @@ export default function TVDisplay() {
     load();
     timer.current = setInterval(load, 8000);
     return () => { if (timer.current) clearInterval(timer.current); };
-  }, []);
+  }, [load]);
 
-  if (!dd) {
+  // ─── Process Display Data ─────────────────────────────────────────────────
+const rawData = deviceDisplay as DeviceDisplayResponse | null;
+
+const dd = rawData?.data ?? null;
+
+const isNoActiveContent =
+  rawData?.message === "No active content" || !rawData?.data;
+
+
+  // ─── Initial Loading / No Device ──────────────────────────────────────────
+  if (!rawData && !isNoActiveContent) {
     return (
-      <View style={[st.root, { width: SW, height: SH, alignItems: "center", justifyContent: "center" }]}>
+      <View style={[st.root, { width: SW, height: SH }]}>
         <StatusBar hidden />
-        <Text style={{ fontSize: 24, color: C.primary }}>📌</Text>
-        <Text style={{ fontSize: 16, color: C.primary, marginTop: 10, fontWeight: "500" }}>Screenova</Text>
+        <Header loaded={loaded} P={P} onPress={logout} />
+        <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>📌</Text>
+          <Text style={{ fontSize: 20, color: C.primary, fontWeight: "600" }}>Screenova</Text>
+          <Text style={{ fontSize: 16, color: C.dimText, marginTop: 8 }}>Connecting to display...</Text>
+        </View>
+        <Footer count={0} />
       </View>
     );
   }
 
+  // ─── No Active Content Screen ─────────────────────────────────────────────
+  if (isNoActiveContent || !dd) {
+    return (
+      <View style={[st.root, { width: SW, height: SH }]}>
+        <StatusBar hidden />
+        <Header loaded={loaded} P={P} onPress={logout} />
+        
+        <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ fontSize: 72, marginBottom: 24 }}>📭</Text>
+          <Text style={{ fontSize: 24, color: C.primary, fontWeight: "600", marginBottom: 12 }}>
+            No Active Content
+          </Text>
+          <Text style={{ fontSize: 16, color: C.dimText, textAlign: "center", paddingHorizontal: 40, lineHeight: 22 }}>
+            Waiting for content to be assigned{'\n'}to this display
+          </Text>
+        </View>
+
+        <Footer count={0} />
+      </View>
+    );
+  }
+
+  // ─── Normal Content Screen ────────────────────────────────────────────────
   const lv = getLayoutValue(dd.screenLayout);
   const { rows, cols } = getLayoutDims(dd.screenLayout);
   const hasSlots = (dd.slots?.length ?? 0) > 0;
   const isFeature = isFeatureLayout(lv);
   const slots = isFeature ? normalizeSlots(dd.slots, 3) : normalizeSlots(dd.slots, rows * cols);
-  const images = getSortedImages(dd.images);
-  const total = hasSlots ? slots.reduce((n, s) => n + s.images.length, 0) : images.length;
-  const isEmpty = hasSlots ? slots.every(s => s.images.length === 0) : images.length === 0;
+  const total = hasSlots ? slots.reduce((n, s) => n + s.images.length, 0) : getSortedImages(dd.images).length;
 
   return (
     <View style={[st.root, { width: SW, height: SH }]}>
       <StatusBar hidden />
       <Header loaded={loaded} P={P} onPress={logout} />
+      
       <View style={{ flex: 1, backgroundColor: C.bg }}>
         <Animated.View style={{ opacity: fade, flex: 1, padding: GAP }}>
-          {isEmpty ? (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 28 }}>📭</Text>
-              <Text style={{ fontSize: 16, color: C.primary, marginTop: 10 }}>No Content</Text>
-              <Text style={{ fontSize: 11, color: C.dimText, marginTop: 4 }}>Waiting for content...</Text>
-            </View>
-          ) : isFeature ? (
+          {isFeature ? (
             <FeatureLayoutView layout={lv as FeatureLayout} slots={slots} />
           ) : (
             <GridView rows={rows} cols={cols} slots={slots} />
           )}
         </Animated.View>
       </View>
+
       <Footer count={total} />
     </View>
   );

@@ -32,29 +32,13 @@ export const LayoutMiniPreview = ({
     <View key={key} style={{ flex, borderWidth: 0.5, borderColor: cellBorder, backgroundColor: cellBg }} />
   );
 
-  const renderCustom = () => {
-    switch (config.value) {
-      case "f2": return (<View style={{ flex: 1, flexDirection: "row" }}>{cell("a", 2)}<View style={{ flex: 1 }}>{cell("b")}{cell("c")}</View></View>);
-      case "2f": return (<View style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1 }}>{cell("a")}{cell("b")}</View>{cell("c", 2)}</View>);
-      case "ft": return (<View style={{ flex: 1 }}>{cell("a", 2)}<View style={{ flex: 1, flexDirection: "row" }}>{cell("b")}{cell("c")}</View></View>);
-      case "fb": return (<View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{cell("a")}{cell("b")}</View>{cell("c", 2)}</View>);
-      case "t2b1": return (<View style={{ flex: 1 }}><View style={{ flex: 1, flexDirection: "row" }}>{cell("a")}{cell("b")}</View>{cell("c", 1)}</View>);
-      case "t1b2": return (<View style={{ flex: 1 }}>{cell("a", 1)}<View style={{ flex: 1, flexDirection: "row" }}>{cell("b")}{cell("c")}</View></View>);
-      default: return null;
-    }
-  };
-
-  const isCustom = ["f2", "2f", "ft", "fb", "t2b1", "t1b2"].includes(config.value);
-
   return (
     <View style={{ width: size, height: size, borderWidth: 1.5, borderColor, borderRadius: 5, overflow: "hidden", flexDirection: "column" }}>
-      {isCustom ? renderCustom() : (
-        Array.from({ length: config.rows }).map((_, r) => (
-          <View key={r} style={{ flex: 1, flexDirection: "row" }}>
-            {Array.from({ length: config.cols }).map((_, c) => cell(`${r}-${c}`))}
-          </View>
-        ))
-      )}
+      {Array.from({ length: config.rows }).map((_, r) => (
+        <View key={r} style={{ flex: 1, flexDirection: "row" }}>
+          {Array.from({ length: config.cols }).map((_, c) => cell(`${r}-${c}`))}
+        </View>
+      ))}
     </View>
   );
 };
@@ -129,7 +113,7 @@ const Slot = ({
           <Image
             source={{ uri: currentImage.imageurl }}
             style={styles.slotImage}
-            resizeMode="contain" // Changed to contain for full image display
+            resizeMode="contain"
           />
           
           {/* Navigation arrows for multiple images */}
@@ -254,60 +238,16 @@ export const LayoutGrid = ({
     />
   );
 
-  switch (layoutValue) {
-    case "f2":
-      return (
-        <View style={{ flex: 1, flexDirection: "row" }}>
-          <View style={{ flex: 2 }}>{S(0)}</View>
-          <View style={{ flex: 1 }}>{S(1)}{S(2)}</View>
+  // Simple grid rendering based on rows and cols
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <View key={r} style={{ flex: 1, flexDirection: "row" }}>
+          {Array.from({ length: cols }).map((_, c) => S(r * cols + c))}
         </View>
-      );
-    case "2f":
-      return (
-        <View style={{ flex: 1, flexDirection: "row" }}>
-          <View style={{ flex: 1 }}>{S(0)}{S(1)}</View>
-          <View style={{ flex: 2 }}>{S(2)}</View>
-        </View>
-      );
-    case "ft":
-      return (
-        <View style={{ flex: 1 }}>
-          <View style={{ flex: 2 }}>{S(0)}</View>
-          <View style={{ flex: 1, flexDirection: "row" }}>{S(1)}{S(2)}</View>
-        </View>
-      );
-    case "fb":
-      return (
-        <View style={{ flex: 1 }}>
-          <View style={{ flex: 1, flexDirection: "row" }}>{S(0)}{S(1)}</View>
-          <View style={{ flex: 2 }}>{S(2)}</View>
-        </View>
-      );
-    case "t2b1":
-      return (
-        <View style={{ flex: 1 }}>
-          <View style={{ flex: 1, flexDirection: "row" }}>{S(0)}{S(1)}</View>
-          <View style={{ flex: 1 }}>{S(2)}</View>
-        </View>
-      );
-    case "t1b2":
-      return (
-        <View style={{ flex: 1 }}>
-          <View style={{ flex: 1 }}>{S(0)}</View>
-          <View style={{ flex: 1, flexDirection: "row" }}>{S(1)}{S(2)}</View>
-        </View>
-      );
-    default:
-      return (
-        <>
-          {Array.from({ length: rows }).map((_, r) => (
-            <View key={r} style={{ flex: 1, flexDirection: "row" }}>
-              {Array.from({ length: cols }).map((_, c) => S(r * cols + c))}
-            </View>
-          ))}
-        </>
-      );
-  }
+      ))}
+    </>
+  );
 };
 
 // ─── STYLES ─────────────────────────────────────────────────────────────────

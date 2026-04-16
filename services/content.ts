@@ -67,6 +67,8 @@ export interface LiveDisplay {
 }
 
 export interface DeviceDisplay {
+  data: null;
+  message: string;
   slots: never[];
   id: number;
   title: string;
