@@ -12,11 +12,16 @@ import { clearTokens } from "@/services/api";
 import { notifyAuthChange } from "@/utils/authEvents";
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { getLocation, fetchWeather, WeatherData } from "@/utils/weather";
+
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
-  primary: "#1E3A8A", secondary: "#8B4513",
-  bg: "#EDF1FE", headerBg: "#FFFFFF", footerBg: "#FFFFFF",
-  dimText: "#6B5B4F", border: "rgba(30,58,138,0.15)",
+  primary: "#FFFFFF", // Changed to white for visibility
+  secondary: "#8B4513",
+  bg: "#2A3462", 
+  headerBg: "#2A3462", 
+  footerBg: "#2A3462", // Same as header for consistency
+  dimText: "#E0E0E0", // Lighter for visibility
+  border: "rgba(255,255,255,0.15)", // Lighter border
 };
 
 const PIN_PALETTE = ["#D94035","#1E3A8A","#8B4513","#1A7A4A","#7B3FA0","#C75B15","#1A6B8A","#3D3D3D"];
@@ -26,7 +31,6 @@ const isMobile = SCREEN_WIDTH < 768 || Platform.OS !== 'web';
 const GAP = isMobile ? 4 : 12;
 const PIN_WIDTH = isMobile ? 14 : 28;
 const HEADER_H = isMobile ? 40 : 56;
-const FOOTER_H = isMobile ? 40 : 60;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ImageObject = { imageId: number; imageurl: string; sortOrder: number };
@@ -42,7 +46,6 @@ type DeviceDisplayResponse = {
   message: string;
   data: DeviceDisplay | null;
 };
-
 
 type FeatureLayout = "f2" | "2f" | "ft" | "fb";
 const FEATURE_LAYOUTS: FeatureLayout[] = ["f2","2f","ft","fb"];
@@ -93,20 +96,53 @@ function computePinPos(cW: number, cH: number, nW: number, nH: number) {
   return { left: (cW - rW) / 2 + rW / 2 - PIN_WIDTH / 2, top: (cH - rH) / 2 - (isMobile ? 4 : 12) };
 }
 
-// ─── Ultra-Mild Float Animation ───────────────────────────────────────────────
+// ─── THREE ULTRA-MILD IMAGE EFFECTS ──────────────────────────────────────────
+// Effect 1: Gentle Float (very mild vertical movement)
 function useGentleFloat() {
   const floatY = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(floatY, { toValue: isMobile ? -0.8 : -1.2, duration: 5000, useNativeDriver: true }),
-        Animated.timing(floatY, { toValue: isMobile ? 0.8 : 1.2, duration: 5000, useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: isMobile ? -0.5 : -0.8, duration: 6000, useNativeDriver: true }),
+        Animated.timing(floatY, { toValue: isMobile ? 0.5 : 0.8, duration: 6000, useNativeDriver: true }),
       ])
     );
     anim.start();
     return () => anim.stop();
   }, []);
   return floatY;
+}
+
+// Effect 2: Ultra-Subtle Pulse (barely noticeable breathing)
+function useSubtlePulse() {
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.01, duration: 4000, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.99, duration: 4000, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+  return pulse;
+}
+
+// Effect 3: Gentle Rotation (barely visible micro-rotation)
+function useGentleRotate() {
+  const rotate = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(rotate, { toValue: 0.3, duration: 8000, useNativeDriver: true }),
+        Animated.timing(rotate, { toValue: -0.3, duration: 8000, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+  return rotate;
 }
 
 // ─── Small Pin ────────────────────────────────────────────────────────────────
@@ -121,18 +157,25 @@ function Pin({ color }: { color: string }) {
   );
 }
 
-// ─── ImageCell ────────────────────────────────────────────────────────────────
+// ─── ImageCell with Three Mild Effects ────────────────────────────────────────
 function ImageCell({ img, pinColor }: { img: ImageObject | null; pinColor: string }) {
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null);
   const [natSize, setNatSize] = useState<{ w: number; h: number } | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [effectIndex, setEffectIndex] = useState(0);
+  
+  // Three effects
   const floatY = useGentleFloat();
+  const pulse = useSubtlePulse();
+  const rotate = useGentleRotate();
 
   useEffect(() => {
     if (!img?.imageurl) return;
     let cancel = false;
     setLoaded(false);
     fetchImageSize(img.imageurl, (w, h) => { if (!cancel) setNatSize({ w, h }); });
+    // Cycle through effects for variety
+    setEffectIndex(Math.floor(Math.random() * 3));
     return () => { cancel = true; };
   }, [img?.imageurl]);
 
@@ -140,10 +183,31 @@ function ImageCell({ img, pinColor }: { img: ImageObject | null; pinColor: strin
     ? computePinPos(cellSize.w, cellSize.h, natSize.w, natSize.h)
     : cellSize ? { left: cellSize.w / 2 - PIN_WIDTH / 2, top: isMobile ? -4 : -12 } : null;
 
+  // Choose which effect to apply
+  const getEffectStyle = () => {
+    switch(effectIndex) {
+      case 0: // Float effect
+        return { transform: [{ translateY: floatY }] };
+      case 1: // Pulse effect
+        return { transform: [{ scale: pulse }] };
+      case 2: // Rotate effect
+        return { 
+          transform: [
+            { rotate: rotate.interpolate({
+              inputRange: [-0.3, 0.3],
+              outputRange: ['-0.3deg', '0.3deg']
+            })}
+          ] 
+        };
+      default:
+        return {};
+    }
+  };
+
   return (
     <View style={st.cellWrapper} onLayout={(e) => setCellSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       <View style={st.floatCard}>
-        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: floatY }] }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, getEffectStyle()]}>
           {img?.imageurl ? (
             <Image source={{ uri: img.imageurl }} style={StyleSheet.absoluteFill} resizeMode="contain" onLoad={() => setLoaded(true)} />
           ) : (
@@ -269,7 +333,6 @@ function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => str
 
     loadWeather();
 
-    // refresh every 10 mins
     interval = setInterval(loadWeather, 10 * 60 * 1000);
 
     return () => clearInterval(interval);
@@ -291,7 +354,7 @@ function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => str
       {/* RIGHT */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 8 : 12 }}>
 
-        {/* 🌦️ WEATHER */}
+        {/* WEATHER */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           {weather?.icon && (
             <Image
@@ -304,7 +367,7 @@ function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => str
           </Text>
         </View>
 
-        {/* ⏰ TIME */}
+        {/* TIME */}
         <DateTimeDisplay />
       </View>
     </View>
@@ -314,25 +377,10 @@ function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => str
 const hSt = StyleSheet.create({
   bar: { backgroundColor: C.headerBg, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: C.border },
   brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoBox: { borderRadius: 6, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" },
+  logoBox: { borderRadius: 6, backgroundColor: "#1E3A8A", alignItems: "center", justifyContent: "center" },
   appName: { color: C.primary, letterSpacing: 1, fontWeight: "700" },
 });
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer({ count }: { count: number }) {
-  return (
-    <View style={[fSt.bar, { height: FOOTER_H, paddingHorizontal: isMobile ? 10 : 20 }]}>
-      <Text style={[fSt.chip, { fontSize: isMobile ? 9 : 11 }]}>{count} Item{count !== 1 ? 's' : ''}</Text>
-      <View style={{ width: 10 }} />
-    </View>
-  );
-}
-const fSt = StyleSheet.create({
-  bar: { backgroundColor: C.footerBg, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: C.border },
-  chip: { borderWidth: 1, borderColor: C.border, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: "rgba(30,58,138,0.05)", color: C.primary },
-});
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function TVDisplay() {
   const { width: SW, height: SH } = useWindowDimensions();
@@ -367,9 +415,7 @@ export default function TVDisplay() {
     try {
       const raw = await fetchDeviceDisplay();
       
-      // Handle "No active content" case
       if (raw?.message === "No active content" || raw?.data === null) {
-        // We will handle this in render as empty content
         return;
       }
     } catch (err) {
@@ -383,32 +429,24 @@ export default function TVDisplay() {
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [load]);
 
-  // ─── Process Display Data ─────────────────────────────────────────────────
-const rawData = deviceDisplay as DeviceDisplayResponse | null;
+  const rawData = deviceDisplay as DeviceDisplayResponse | null;
+  const dd = rawData?.data ?? null;
+  const isNoActiveContent = rawData?.message === "No active content" || !rawData?.data;
 
-const dd = rawData?.data ?? null;
-
-const isNoActiveContent =
-  rawData?.message === "No active content" || !rawData?.data;
-
-
-  // ─── Initial Loading / No Device ──────────────────────────────────────────
   if (!rawData && !isNoActiveContent) {
     return (
       <View style={[st.root, { width: SW, height: SH }]}>
         <StatusBar hidden />
         <Header loaded={loaded} P={P} onPress={logout} />
         <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>📌</Text>
+          <Text style={{ fontSize: 48, marginBottom: 16, color: C.primary }}>📌</Text>
           <Text style={{ fontSize: 20, color: C.primary, fontWeight: "600" }}>Screenova</Text>
           <Text style={{ fontSize: 16, color: C.dimText, marginTop: 8 }}>Connecting to display...</Text>
         </View>
-        <Footer count={0} />
       </View>
     );
   }
 
-  // ─── No Active Content Screen ─────────────────────────────────────────────
   if (isNoActiveContent || !dd) {
     return (
       <View style={[st.root, { width: SW, height: SH }]}>
@@ -416,7 +454,7 @@ const isNoActiveContent =
         <Header loaded={loaded} P={P} onPress={logout} />
         
         <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontSize: 72, marginBottom: 24 }}>📭</Text>
+          <Text style={{ fontSize: 72, marginBottom: 24, color: C.primary }}>📭</Text>
           <Text style={{ fontSize: 24, color: C.primary, fontWeight: "600", marginBottom: 12 }}>
             No Active Content
           </Text>
@@ -424,13 +462,10 @@ const isNoActiveContent =
             Waiting for content to be assigned{'\n'}to this display
           </Text>
         </View>
-
-        <Footer count={0} />
       </View>
     );
   }
 
-  // ─── Normal Content Screen ────────────────────────────────────────────────
   const lv = getLayoutValue(dd.screenLayout);
   const { rows, cols } = getLayoutDims(dd.screenLayout);
   const hasSlots = (dd.slots?.length ?? 0) > 0;
@@ -452,18 +487,16 @@ const isNoActiveContent =
           )}
         </Animated.View>
       </View>
-
-      <Footer count={total} />
     </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#EDF1FE" },
+  root: { flex: 1, backgroundColor: "#2A3462" }, // Same as header bg
   cellWrapper: { flex: 1, position: "relative", minHeight: isMobile ? 60 : 100 },
   floatCard: {
-    flex: 1, backgroundColor: "#FFF", borderRadius: isMobile ? 4 : 10, overflow: "hidden",
+    flex: 1, backgroundColor: "#2A3462", borderRadius: isMobile ? 4 : 10, overflow: "hidden",
     ...Platform.select({ ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 }, android: { elevation: 2 } }),
   },
   pinAnchor: { position: "absolute", zIndex: 40 },
