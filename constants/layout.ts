@@ -1,11 +1,24 @@
-export interface LayoutConfig {
-  label: string;
-  value: string;
-  rows: number;
-  cols: number;
-  slots: number;
-}
 
+export interface LayoutConfig {
+  type: string;
+  value: string;
+  label: string;
+  slots: number;
+    rows: number;
+  cols: number;
+
+  structure: {
+    direction?: "row" | "column";
+    children: (
+      | number
+      | {
+          direction?: "row" | "column";
+          children: (number)[];
+          flex?: number;
+        }
+    )[];
+  };
+}
 // Keep this only as a fallback / type reference — do NOT use in UI
 export const LAYOUT_CONFIGS: LayoutConfig[] = [];
 

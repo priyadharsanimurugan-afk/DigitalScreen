@@ -422,7 +422,7 @@ const finalImageList = React.useMemo(() => {
         </View>
       </Modal>
 
-   // In the return statement of LiveContentEditModal, update the LayoutArrangeModal:
+
 
 <LayoutArrangeModal
   visible={layoutModalVisible}

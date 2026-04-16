@@ -28,21 +28,114 @@ export const LayoutMiniPreview = ({
   const cellBg = isActive ? "rgba(255,255,255,0.15)" : C.surfaceAlt;
   const cellBorder = isActive ? "rgba(255,255,255,0.35)" : C.border;
 
-  const cell = (key: number | string, flex = 1) => (
-    <View key={key} style={{ flex, borderWidth: 0.5, borderColor: cellBorder, backgroundColor: cellBg }} />
+  const gap = 2;
+
+  const box = (key: string) => (
+    <View
+      key={key}
+      style={{
+        flex: 1,
+        borderWidth: 0.5,
+        borderColor: cellBorder,
+        backgroundColor: cellBg,
+        borderRadius: 2,
+      }}
+    />
   );
 
-  return (
-    <View style={{ width: size, height: size, borderWidth: 1.5, borderColor, borderRadius: 5, overflow: "hidden", flexDirection: "column" }}>
-      {Array.from({ length: config.rows }).map((_, r) => (
-        <View key={r} style={{ flex: 1, flexDirection: "row" }}>
-          {Array.from({ length: config.cols }).map((_, c) => cell(`${r}-${c}`))}
-        </View>
-      ))}
+  const wrap = (children: React.ReactNode) => (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderWidth: 1.5,
+        borderColor,
+        borderRadius: 5,
+        overflow: "hidden",
+      }}
+    >
+      {children}
     </View>
   );
-};
 
+  /* ───────────────────────────────
+     GRID (EQUAL CELLS)
+  ─────────────────────────────── */
+  if (config.type === "grid" && config.rows && config.cols) {
+    return wrap(
+      <View style={{ flex: 1, flexDirection: "column", gap }}>
+        {Array.from({ length: config.rows }).map((_, r) => (
+          <View key={r} style={{ flex: 1, flexDirection: "row", gap }}>
+            {Array.from({ length: config.cols }).map((_, c) =>
+              box(`${r}-${c}`)
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  /* ───────────────────────────────
+     CUSTOM (ALWAYS EQUAL WEIGHTS)
+  ─────────────────────────────── */
+  if (config.type === "custom") {
+    const v = config.value;
+
+    // f2 → left + stacked right
+    if (v === "f2") {
+      return wrap(
+        <View style={{ flex: 1, flexDirection: "row", gap }}>
+          <View style={{ flex: 1 }}>{box("0")}</View>
+          <View style={{ flex: 1, flexDirection: "column", gap }}>
+            {box("1")}
+            {box("2")}
+          </View>
+        </View>
+      );
+    }
+
+    // 2f → stacked left + right
+    if (v === "2f") {
+      return wrap(
+        <View style={{ flex: 1, flexDirection: "row", gap }}>
+          <View style={{ flex: 1, flexDirection: "column", gap }}>
+            {box("0")}
+            {box("1")}
+          </View>
+          <View style={{ flex: 1 }}>{box("2")}</View>
+        </View>
+      );
+    }
+
+    // ft → top + bottom split
+    if (v === "ft") {
+      return wrap(
+        <View style={{ flex: 1, flexDirection: "column", gap }}>
+          <View style={{ flex: 1 }}>{box("0")}</View>
+          <View style={{ flex: 1, flexDirection: "row", gap }}>
+            {box("1")}
+            {box("2")}
+          </View>
+        </View>
+      );
+    }
+
+    // fb → bottom big (still equal visual slots)
+    if (v === "fb") {
+      return wrap(
+        <View style={{ flex: 1, flexDirection: "column", gap }}>
+          <View style={{ flex: 1, flexDirection: "row", gap }}>
+            {box("0")}
+            {box("1")}
+          </View>
+          <View style={{ flex: 1 }}>{box("2")}</View>
+        </View>
+      );
+    }
+  }
+
+  return null;
+};
 // ─── SLOT COMPONENT — supports multiple imageIds ──────────────────────────────
 
 interface SlotProps {
@@ -222,6 +315,7 @@ export const LayoutGrid = ({
   rows = 1,
   cols = 1,
 }: LayoutGridProps) => {
+
   const S = (idx: number) => (
     <Slot
       key={idx}
@@ -238,12 +332,66 @@ export const LayoutGrid = ({
     />
   );
 
-  // Simple grid rendering based on rows and cols
+  // 🔥 FEATURE LEFT
+  if (layoutValue === "f2") {
+    return (
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        <View style={{ flex: 1 }}>{S(0)}</View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flex: 1 }}>{S(1)}</View>
+          <View style={{ flex: 1 }}>{S(2)}</View>
+        </View>
+      </View>
+    );
+  }
+
+  // 🔥 FEATURE RIGHT
+  if (layoutValue === "2f") {
+    return (
+      <View style={{ flex: 1, flexDirection: "row" }}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flex: 1 }}>{S(0)}</View>
+          <View style={{ flex: 1 }}>{S(1)}</View>
+        </View>
+        <View style={{ flex: 1 }}>{S(2)}</View>
+      </View>
+    );
+  }
+
+  // 🔥 FEATURE TOP
+  if (layoutValue === "ft") {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>{S(0)}</View>
+        <View style={{ flex: 1, flexDirection: "row" }}>
+          <View style={{ flex: 1 }}>{S(1)}</View>
+          <View style={{ flex: 1 }}>{S(2)}</View>
+        </View>
+      </View>
+    );
+  }
+
+  // 🔥 FEATURE BOTTOM
+  if (layoutValue === "fb") {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, flexDirection: "row" }}>
+          <View style={{ flex: 1 }}>{S(0)}</View>
+          <View style={{ flex: 1 }}>{S(1)}</View>
+        </View>
+        <View style={{ flex: 1 }}>{S(2)}</View>
+      </View>
+    );
+  }
+
+  // ✅ DEFAULT GRID (your existing logic)
   return (
     <>
       {Array.from({ length: rows }).map((_, r) => (
         <View key={r} style={{ flex: 1, flexDirection: "row" }}>
-          {Array.from({ length: cols }).map((_, c) => S(r * cols + c))}
+          {Array.from({ length: cols }).map((_, c) =>
+            S(r * cols + c)
+          )}
         </View>
       ))}
     </>
