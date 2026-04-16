@@ -333,19 +333,21 @@ export default function MediaScreen() {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
-      input.onchange = async (e: any) => {
-        const file = e.target.files?.[0];
-        if (!file) {
-          Toast.show({
-            type: 'error',
-            text1: 'No File Selected',
-            text2: 'Please select an image file',
-            visibilityTime: 2000,
-          });
-          return;
-        }
-        await upload(file, file.name.replace(/\.[^/.]+$/, ""));
-      };
+      input.multiple = true; // ✅ add this
+     input.onchange = async (e: any) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  await Promise.all(
+    files.map((file: any) =>
+      upload(
+        file,
+        file.name.replace(/\.[^/.]+$/, "")
+      )
+    )
+  );
+};
+
       input.click();
       return;
     }
@@ -361,10 +363,12 @@ export default function MediaScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-    });
+ const result = await ImagePicker.launchImageLibraryAsync({
+  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  quality: 1,
+  allowsMultipleSelection: true, // ✅ important
+});
+
 
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];

@@ -15,13 +15,13 @@ import { getLocation, fetchWeather, WeatherData } from "@/utils/weather";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
-  primary: "#FFFFFF", // Changed to white for visibility
+  primary: "#FFFFFF",
   secondary: "#8B4513",
   bg: "#2A3462", 
   headerBg: "#2A3462", 
-  footerBg: "#2A3462", // Same as header for consistency
-  dimText: "#E0E0E0", // Lighter for visibility
-  border: "rgba(255,255,255,0.15)", // Lighter border
+  footerBg: "#2A3462",
+  dimText: "#E0E0E0",
+  border: "rgba(255,255,255,0.15)",
 };
 
 const PIN_PALETTE = ["#D94035","#1E3A8A","#8B4513","#1A7A4A","#7B3FA0","#C75B15","#1A6B8A","#3D3D3D"];
@@ -96,52 +96,121 @@ function computePinPos(cW: number, cH: number, nW: number, nH: number) {
   return { left: (cW - rW) / 2 + rW / 2 - PIN_WIDTH / 2, top: (cH - rH) / 2 - (isMobile ? 4 : 12) };
 }
 
-// ─── THREE ULTRA-MILD IMAGE EFFECTS ──────────────────────────────────────────
-// Effect 1: Gentle Float (very mild vertical movement)
-function useGentleFloat() {
+// ─── FIXED: Sequential Animation Hooks ────────────────────────────────────────
+function useSequentialFloat(slotIndex: number) {
   const floatY = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatY, { toValue: isMobile ? -0.5 : -0.8, duration: 6000, useNativeDriver: true }),
-        Animated.timing(floatY, { toValue: isMobile ? 0.5 : 0.8, duration: 6000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+    const delay = slotIndex * 800;
+    
+    const startAnimation = () => {
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(floatY, { 
+            toValue: isMobile ? -3 : -5, 
+            duration: 6000, 
+            useNativeDriver: true 
+          }),
+          Animated.timing(floatY, { 
+            toValue: isMobile ? 3 : 5, 
+            duration: 6000, 
+            useNativeDriver: true 
+          }),
+        ])
+      );
+      anim.start();
+      animationRef.current = anim;
+    };
+    
+    startAnimation();
+    
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
+  }, [slotIndex]);
+  
   return floatY;
 }
 
-// Effect 2: Ultra-Subtle Pulse (barely noticeable breathing)
-function useSubtlePulse() {
+function useSequentialPulse(slotIndex: number) {
   const pulse = useRef(new Animated.Value(1)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.01, duration: 4000, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.99, duration: 4000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+    const delay = slotIndex * 800;
+    
+    const startAnimation = () => {
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(pulse, { 
+            toValue: 1.02, 
+            duration: 4000, 
+            useNativeDriver: true 
+          }),
+          Animated.timing(pulse, { 
+            toValue: 0.98, 
+            duration: 4000, 
+            useNativeDriver: true 
+          }),
+        ])
+      );
+      anim.start();
+      animationRef.current = anim;
+    };
+    
+    startAnimation();
+    
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
+  }, [slotIndex]);
+  
   return pulse;
 }
 
-// Effect 3: Gentle Rotation (barely visible micro-rotation)
-function useGentleRotate() {
+function useSequentialRotate(slotIndex: number) {
   const rotate = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(rotate, { toValue: 0.3, duration: 8000, useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: -0.3, duration: 8000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
+    const delay = slotIndex * 800;
+    
+    const startAnimation = () => {
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(rotate, { 
+            toValue: 1, 
+            duration: 8000, 
+            useNativeDriver: true 
+          }),
+          Animated.timing(rotate, { 
+            toValue: -1, 
+            duration: 8000, 
+            useNativeDriver: true 
+          }),
+        ])
+      );
+      anim.start();
+      animationRef.current = anim;
+    };
+    
+    startAnimation();
+    
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
+  }, [slotIndex]);
+  
   return rotate;
 }
 
@@ -157,25 +226,29 @@ function Pin({ color }: { color: string }) {
   );
 }
 
-// ─── ImageCell with Three Mild Effects ────────────────────────────────────────
-function ImageCell({ img, pinColor }: { img: ImageObject | null; pinColor: string }) {
+// ─── ImageCell with Sequential Effects ────────────────────────────────────────
+function ImageCell({ img, pinColor, slotIndex }: { 
+  img: ImageObject | null; 
+  pinColor: string;
+  slotIndex: number;
+}) {
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null);
   const [natSize, setNatSize] = useState<{ w: number; h: number } | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [effectIndex, setEffectIndex] = useState(0);
   
-  // Three effects
-  const floatY = useGentleFloat();
-  const pulse = useSubtlePulse();
-  const rotate = useGentleRotate();
+  // Use sequential effects based on slot index
+  const floatY = useSequentialFloat(slotIndex);
+  const pulse = useSequentialPulse(slotIndex);
+  const rotate = useSequentialRotate(slotIndex);
+  
+  // Cycle through effects based on slot index
+  const effectIndex = slotIndex % 3;
 
   useEffect(() => {
     if (!img?.imageurl) return;
     let cancel = false;
     setLoaded(false);
     fetchImageSize(img.imageurl, (w, h) => { if (!cancel) setNatSize({ w, h }); });
-    // Cycle through effects for variety
-    setEffectIndex(Math.floor(Math.random() * 3));
     return () => { cancel = true; };
   }, [img?.imageurl]);
 
@@ -183,20 +256,21 @@ function ImageCell({ img, pinColor }: { img: ImageObject | null; pinColor: strin
     ? computePinPos(cellSize.w, cellSize.h, natSize.w, natSize.h)
     : cellSize ? { left: cellSize.w / 2 - PIN_WIDTH / 2, top: isMobile ? -4 : -12 } : null;
 
-  // Choose which effect to apply
   const getEffectStyle = () => {
     switch(effectIndex) {
-      case 0: // Float effect
+      case 0:
         return { transform: [{ translateY: floatY }] };
-      case 1: // Pulse effect
+      case 1:
         return { transform: [{ scale: pulse }] };
-      case 2: // Rotate effect
+      case 2:
         return { 
           transform: [
-            { rotate: rotate.interpolate({
-              inputRange: [-0.3, 0.3],
-              outputRange: ['-0.3deg', '0.3deg']
-            })}
+            { 
+              rotate: rotate.interpolate({
+                inputRange: [-1, 1],
+                outputRange: ['-1deg', '1deg']
+              }) 
+            }
           ] 
         };
       default:
@@ -222,31 +296,64 @@ function ImageCell({ img, pinColor }: { img: ImageObject | null; pinColor: strin
   );
 }
 
-// ─── SlotSlideshow - Professional Crossfade ───────────────────────────────────
-function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex: number }) {
+// ─── SlotSlideshow - Professional Crossfade with Sequential Animation ─────────
+function SlotSlideshow({ images, slotIndex }: { 
+  images: ImageObject[]; 
+  slotIndex: number;
+}) {
   const [idx, setIdx] = useState(0);
   const fade = useRef(new Animated.Value(1)).current;
   const idxRef = useRef(0);
   const imgsRef = useRef(images);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { imgsRef.current = images; }, [images]);
-  useEffect(() => { idxRef.current = idx; }, [idx]);
+  useEffect(() => { 
+    imgsRef.current = images; 
+  }, [images]);
+  
+  useEffect(() => { 
+    idxRef.current = idx; 
+  }, [idx]);
 
   useEffect(() => {
     if (images.length <= 1) return;
-    const timer = setInterval(() => {
-      Animated.timing(fade, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-        setIdx((idxRef.current + 1) % imgsRef.current.length);
-        Animated.timing(fade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-      });
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [images.length]);
+    
+    // Stagger the start of slideshow per slot
+    const startDelay = slotIndex * 1200;
+    
+    const timeout = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        Animated.timing(fade, { 
+          toValue: 0, 
+          duration: 300, 
+          useNativeDriver: true 
+        }).start(() => {
+          setIdx((idxRef.current + 1) % imgsRef.current.length);
+          Animated.timing(fade, { 
+            toValue: 1, 
+            duration: 300, 
+            useNativeDriver: true 
+          }).start();
+        });
+      }, 5000);
+    }, startDelay);
+    
+    return () => {
+      clearTimeout(timeout);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [images.length, slotIndex]);
 
   return (
     <View style={{ flex: 1 }}>
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]}>
-        <ImageCell img={images[idx]} pinColor={PIN_PALETTE[(slotIndex + idx) % PIN_PALETTE.length]} />
+        <ImageCell 
+          img={images[idx]} 
+          pinColor={PIN_PALETTE[(slotIndex + idx) % PIN_PALETTE.length]} 
+          slotIndex={slotIndex}
+        />
       </Animated.View>
       {images.length > 1 && (
         <View style={st.slotCounter}>
@@ -258,14 +365,25 @@ function SlotSlideshow({ images, slotIndex }: { images: ImageObject[]; slotIndex
 }
 
 // ─── SlotCell ─────────────────────────────────────────────────────────────────
-function SlotCell({ slot, idx }: { slot: { images: ImageObject[] }; idx: number }) {
-  if (slot.images.length === 0) return <ImageCell img={null} pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} />;
-  if (slot.images.length === 1) return <ImageCell img={slot.images[0]} pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} />;
+function SlotCell({ slot, idx }: { 
+  slot: { images: ImageObject[] }; 
+  idx: number;
+}) {
+  if (slot.images.length === 0) {
+    return <ImageCell img={null} pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} slotIndex={idx} />;
+  }
+  if (slot.images.length === 1) {
+    return <ImageCell img={slot.images[0]} pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} slotIndex={idx} />;
+  }
   return <SlotSlideshow images={slot.images} slotIndex={idx} />;
 }
 
 // ─── GridView ─────────────────────────────────────────────────────────────────
-function GridView({ rows, cols, slots }: { rows: number; cols: number; slots: any[] }) {
+function GridView({ rows, cols, slots }: { 
+  rows: number; 
+  cols: number; 
+  slots: any[];
+}) {
   return (
     <View style={{ flex: 1, gap: GAP }}>
       {Array.from({ length: rows }, (_, r) => (
@@ -285,7 +403,10 @@ function GridView({ rows, cols, slots }: { rows: number; cols: number; slots: an
 }
 
 // ─── FeatureLayoutView ────────────────────────────────────────────────────────
-function FeatureLayoutView({ layout, slots }: { layout: FeatureLayout; slots: any[] }) {
+function FeatureLayoutView({ layout, slots }: { 
+  layout: FeatureLayout; 
+  slots: any[];
+}) {
   const safe = [slots[0] ?? { images: [] }, slots[1] ?? { images: [] }, slots[2] ?? { images: [] }];
   const Feature = <View style={{ flex: 1 }}><SlotCell slot={safe[0]} idx={0} /></View>;
   const SmallsV = <View style={{ flex: 1, gap: GAP }}><View style={{ flex: 1 }}><SlotCell slot={safe[1]} idx={1} /></View><View style={{ flex: 1 }}><SlotCell slot={safe[2]} idx={2} /></View></View>;
@@ -471,7 +592,6 @@ export default function TVDisplay() {
   const hasSlots = (dd.slots?.length ?? 0) > 0;
   const isFeature = isFeatureLayout(lv);
   const slots = isFeature ? normalizeSlots(dd.slots, 3) : normalizeSlots(dd.slots, rows * cols);
-  const total = hasSlots ? slots.reduce((n, s) => n + s.images.length, 0) : getSortedImages(dd.images).length;
 
   return (
     <View style={[st.root, { width: SW, height: SH }]}>
@@ -493,7 +613,7 @@ export default function TVDisplay() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#2A3462" }, // Same as header bg
+  root: { flex: 1, backgroundColor: "#2A3462" },
   cellWrapper: { flex: 1, position: "relative", minHeight: isMobile ? 60 : 100 },
   floatCard: {
     flex: 1, backgroundColor: "#2A3462", borderRadius: isMobile ? 4 : 10, overflow: "hidden",
