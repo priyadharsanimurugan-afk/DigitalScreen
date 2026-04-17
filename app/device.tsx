@@ -25,6 +25,7 @@ import ResponsiveLayout from "@/components/responsiveLayout";
 import { useDevices } from "@/hooks/useDevice";
 import CreateDeviceModal from "./CreateAccountModal";
 import { styles } from "./device.styles";
+import { router } from "expo-router";
 
 interface StatusCardProps {
   title: string;
@@ -328,22 +329,49 @@ const handleCreateDevice = async (data: any) => {
         >
           <View style={[styles.contentContainer, isMobile && styles.contentContainerMobile]}>
             {/* Header */}
-            <View style={[styles.header, isMobile && styles.headerMobile]}>
-              <View>
-                <Text style={[styles.title, isMobile && styles.titleMobile]}>Device Management</Text>
-                <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>
-                  Monitor and organize your digital signage network.
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.createBtn, isMobile && styles.createBtnMobile]}
-                onPress={() => setCreateModalVisible(true)}
-              >
-                <Text style={[styles.createBtnText, isMobile && styles.createBtnTextMobile]}>
-                  {isMobile ? "+ New" : "+ Create New Device"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+          <View style={[styles.header, isMobile && styles.headerMobile]}>
+  <View style={{ flex: 1, gap: 3 }}>
+    {/* Badge - similar to dashboard */}
+    <View style={{
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      alignSelf: "flex-start",
+      backgroundColor: "#FEF3C7",  // brownLight
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 99,
+      marginBottom: 4,
+      borderWidth: 1,
+      borderColor: "#A1620744",  // brownMid with opacity
+    }}>
+      <Ionicons name="hardware-chip-outline" size={11} color="#A16207" />  
+      <Text style={{
+        fontSize: 10,
+        fontFamily: "Poppins_600SemiBold",
+        color: "#A16207",  // brownMid
+        letterSpacing: 0.5,
+        textTransform: "uppercase",
+      }}>
+        Device Management
+      </Text>
+    </View>
+    
+    <Text style={[styles.title, isMobile && styles.titleMobile]}> My Devices</Text>
+    <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>
+      Monitor and organize your digital signage network.
+    </Text>
+  </View>
+  
+  <TouchableOpacity
+    style={[styles.createBtn, isMobile && styles.createBtnMobile]}
+    onPress={() => setCreateModalVisible(true)}
+  >
+    <Text style={[styles.createBtnText, isMobile && styles.createBtnTextMobile]}>
+      {isMobile ? "+ Create New Device" : "+ Create New Device"}
+    </Text>
+  </TouchableOpacity>
+</View>
 
             {/* Stats Cards */}
             {!loading && (
@@ -482,11 +510,38 @@ const handleCreateDevice = async (data: any) => {
                       </Text>
                     </View>
                     <Pagination />
+
+                     
                   </>
                 )}
               </View>
+              
             )}
           </View>
+           <Text
+  style={{
+    fontSize: 13.5,
+    color: "#64748B",
+    marginTop: 18,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 12,
+    paddingHorizontal: 20,
+  }}
+>
+  Read our{" "}
+  <Text
+    style={{
+      color: "#1D3461",
+      fontWeight: "600",
+      textDecorationLine: "underline",
+      cursor: "pointer",
+    }}
+    onPress={() => router.push("/privacyPolicy")}
+  >
+    Privacy Policy of Screen Nova
+  </Text>
+</Text>
         </ScrollView>
 
         {/* Modals */}

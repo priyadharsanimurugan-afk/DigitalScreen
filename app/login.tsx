@@ -3,6 +3,7 @@ import {
   Image, KeyboardAvoidingView, Platform, TouchableWithoutFeedback,
   Keyboard, ScrollView, View, Text, TextInput,
   TouchableOpacity, useWindowDimensions,
+  Linking,
 } from "react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 import { router } from "expo-router";
@@ -267,8 +268,25 @@ const content = (
 
           </View>
         </View>
+      <Text style={{ fontSize: 13, color: "#64748B" ,marginTop: 20}}>
+  By continuing, you agree to our{" "}
+  <Text
+    style={{
+      color: "#1E3A8A",
+      fontWeight: "600",
+      textDecorationLine: "underline",
+      cursor: "pointer", // works on web
+    }}
+   onPress={() => router.push("/privacyPolicy")}
+  >
+    Privacy Policy
+  </Text>
+  .
+</Text>
       </View>
+   
    </Wrapper>
+   
   );
 
   if (Platform.OS === "web") return <View style={s.root}>{content}</View>;

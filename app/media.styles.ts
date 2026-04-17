@@ -34,7 +34,7 @@ export const screen = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
   content: {
-    maxWidth: 1400,
+    maxWidth: 1500,
     alignSelf: "center",
     width: "100%",
     paddingHorizontal: 20,

@@ -60,13 +60,13 @@ interface RefreshTokenApiResponse {
   refreshToken: string;
 }
 
-export const refreshTokenApi = async (data: RefreshTokenRequest) => {
-  // Use direct axios to avoid interceptor loop
-  const response = await axios.post(
+export const refreshTokenApi = async (refreshToken: string) => {
+  const res = await axios.post(
     `${API_BASE_URL}/auth/refresh-token`,
-    data
+    { refreshToken },
+    { headers: { "Content-Type": "application/json" } }
   );
-  return response.data;
+  return res.data;
 };
 
 export interface RevokeTokenRequest {
@@ -75,5 +75,13 @@ export interface RevokeTokenRequest {
 
 export const revokeRefreshTokenApi = async (data: RevokeTokenRequest) => {
   const response = await api.post<{ message: string }>("/auth/revoke-refresh-token", data);
+  return response.data.message;
+};
+
+export const logoutApi = async (refreshToken: string) => {
+  const response = await api.post<{ message: string }>(
+    "/auth/logout",
+    { refreshToken }
+  );
   return response.data.message;
 };

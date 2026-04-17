@@ -48,42 +48,44 @@ useEffect(() => {
   subscribeAuth(reload);
 }, []);
 
-  useEffect(() => {
-    if (!isReady) return;
+useEffect(() => {
+  if (!isReady) return;
 
-    const inLogin = segments[0] === "login";
-    const inDashboard = segments[0] === "dashboard";
-    const inTv = segments[0] === "(tv)";
+  const inLogin = segments[0] === "login";
+  const inDashboard = segments[0] === "dashboard";
+  const inTv = segments[0] === "(tv)";
+  const isPublicRoute = segments[0] === "privacyPolicy";
 
-    // ❌ NOT LOGGED IN → ALWAYS LOGIN
-    if (!isAuthenticated) {
-      if (!inLogin) router.replace("/login");
-      return;
-    }
+  // ✅ Allow public page
+  if (isPublicRoute) return;
 
-    // ✅ LOGGED IN → BLOCK LOGIN PAGE
-    if (isAuthenticated && inLogin) {
-      if (role === "admin") {
-        router.replace("/dashboard");
-      } else {
-        router.replace("/(tv)/display");
-      }
-      return;
-    }
+  // ❌ Not logged in
+  if (!isAuthenticated) {
+    if (!inLogin) router.replace("/login");
+    return;
+  }
 
-    // 🔥 ROLE PROTECTION
-
-    // Admin trying to go TV → redirect
-    if (role === "admin" && inTv) {
+  // ✅ Logged in → block login page
+  if (isAuthenticated && inLogin) {
+    if (role === "admin") {
       router.replace("/dashboard");
-    }
-
-    // User trying admin dashboard → redirect
-    if (role !== "admin" && inDashboard) {
+    } else {
       router.replace("/(tv)/display");
     }
+    return;
+  }
 
-  }, [isAuthenticated, role, segments, isReady]);
+  // 🔥 Role protection
+  if (role === "admin" && inTv) {
+    router.replace("/dashboard");
+  }
+
+  if (role !== "admin" && inDashboard) {
+    router.replace("/(tv)/display");
+  }
+
+}, [isAuthenticated, role, segments, isReady]);
+
 
   if (!isReady) return null;
 
@@ -93,6 +95,8 @@ useEffect(() => {
         <Stack.Screen name="login" />
         <Stack.Screen name="dashboard" />
         <Stack.Screen name="sendtv" />
+        <Stack.Screen name="privacyPolicy" />
+
 
         <Stack.Screen name="(tv)" />
       </Stack>

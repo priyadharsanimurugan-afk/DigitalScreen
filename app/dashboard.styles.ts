@@ -126,7 +126,7 @@ export const sc = StyleSheet.create({
 export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   scroll: { flex: 1 },
-  content: { maxWidth: 1400, alignSelf: "center", width: "100%" },
+  content: { maxWidth: 1500, alignSelf: "center", width: "100%" },
 
   // ── Header ──────────────────────────────────────────────────────────────────
   headerRow: {

@@ -108,7 +108,7 @@ const [isLoading, setIsLoading] = useState(true);
 useEffect(() => {
   if (!content || !visible) return;
 
-  console.log("Content received in modal:", JSON.stringify(content, null, 2));
+
 
   setTitle(content.title || "");
   setDescription(content.description || "");
@@ -117,7 +117,7 @@ useEffect(() => {
   const cfg = layouts.find(l => l.value === content.screenLayout);
 
   if (!cfg) {
-    console.log("❌ Layout not found:", content.screenLayout);
+
     setSlotAssignment([]);
     setIsLoading(false);
     return;
@@ -141,7 +141,7 @@ useEffect(() => {
       }
     });
 
-    console.log("✅ FINAL Slot assignment:", asgn);
+
     setSlotAssignment(asgn);
     return;
   }
@@ -158,7 +158,7 @@ useEffect(() => {
     setIsLoading(false);
   }
 }, [slotAssignment]);
-console.log("RENDER slotAssignment:", slotAssignment);
+
 
 
   const handleRemoveSlot = (idx: number) => {
@@ -204,7 +204,7 @@ const slotsForPreview = React.useMemo(() => {
   }));
 }, [slotAssignment])
 
-console.log("imageList in modal:", imageList);
+
 
 const finalImageList = React.useMemo(() => {
   const missing = content?.slots?.flatMap((slot: any) =>
@@ -341,17 +341,19 @@ const finalImageList = React.useMemo(() => {
     <View style={{ backgroundColor: '#E0E7FF', padding: 8, marginBottom: 8, borderRadius: 4 }}>
       <Text style={{ fontSize: 10, color: '#1E3A8A' }}>
         Debug: Layout: {selectedLayout || 'none'}, Slots: {slotAssignment.length}, 
-        Images: {slotAssignment.flat().length}, Loading: {isLoading ? 'true' : 'false'}
+        Images: {slotAssignment.flat().length}
       </Text>
     </View>
     
     {!isLoading && selectedLayout && slotAssignment.length > 0 ? (
-<TVNoticeBoard 
-  slotAssignment={slotAssignment}   // ✅ FIXED
-  selectedLayout={selectedLayout}   // ✅ FIXED
-  imageList={finalImageList}
-  title={title}
-/>
+  <View style={{ marginLeft: 8,marginRight: 8 }}>
+    <TVNoticeBoard
+      slotAssignment={slotAssignment}
+      selectedLayout={selectedLayout}
+      imageList={finalImageList}
+      title={title}
+    />
+  </View>
 
 
     ) : (

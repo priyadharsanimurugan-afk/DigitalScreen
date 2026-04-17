@@ -5,7 +5,7 @@ export const styles = StyleSheet.create({
   // Layout
   container: { flex: 1, backgroundColor: "#F1F5F9" },
   scrollView: { flex: 1 },
-  contentContainer: { maxWidth: 1200, alignSelf: "center", padding: 20, width: "100%" },
+  contentContainer: { maxWidth: 1500, alignSelf: "center", padding: 20, width: "100%" },
   contentContainerMobile: { padding: 12 },
 
   // Header

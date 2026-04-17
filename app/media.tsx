@@ -393,13 +393,44 @@ export default function MediaScreen() {
             <View style={screen.content}>
 
               {/* Header */}
-              <View style={header.row}>
-                <Text style={header.title}>Media Library</Text>
-                <TouchableOpacity style={header.uploadBtn} onPress={handleUpload}>
-                  <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
-                  <Text style={header.uploadBtnText}>Upload</Text>
-                </TouchableOpacity>
-              </View>
+        {/* Header with Badge */}
+<View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+  <View style={{ flex: 1, gap: 3 }}>
+    {/* Badge - same style as dashboard */}
+    <View style={{
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      alignSelf: "flex-start",
+      backgroundColor: "#FEF3C7",  // brownLight
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 99,
+      marginBottom: 4,
+      borderWidth: 1,
+      borderColor: "#A1620744",  // brownMid with opacity
+    }}>
+      <Ionicons name="images-outline" size={11} color="#A16207" />
+      <Text style={{
+        fontSize: 10,
+        fontFamily: "Poppins_600SemiBold",
+        color: "#A16207",
+        letterSpacing: 0.5,
+        textTransform: "uppercase",
+      }}>
+        Media Management
+      </Text>
+    </View>
+    
+    <Text style={header.title}>Media Library</Text>
+ 
+  </View>
+  
+  <TouchableOpacity style={header.uploadBtn} onPress={handleUpload}>
+    <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+    <Text style={header.uploadBtnText}>Upload</Text>
+  </TouchableOpacity>
+</View>
               <Text style={header.sub}>Manage and organize your image assets.</Text>
 
               {/* Search + Stats */}
@@ -420,14 +451,11 @@ export default function MediaScreen() {
                   )}
                 </View>
                 <View style={stats.bar}>
-                  <View style={stats.item}>
-                    <Ionicons name="folder-outline" size={14} color={COLORS.blue} />
-                    <Text style={stats.text}>Total {images.length}</Text>
-                  </View>
-                  <View style={stats.divider} />
+                
+           
                   <View style={stats.item}>
                     <Ionicons name="images-outline" size={14} color={COLORS.brownMid} />
-                    <Text style={stats.text}>Showing {filtered.length}</Text>
+                    <Text style={stats.text}>Total {images.length}</Text>
                   </View>
                 </View>
               </View>

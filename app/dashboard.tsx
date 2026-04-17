@@ -450,11 +450,12 @@ export default function DashboardScreen() {
               <View style={{ flex: 1, gap: 3 }}>
                 <View style={{
                   flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
-                  backgroundColor: C.brownLight, paddingHorizontal: 10, paddingVertical: 3,
-                  borderRadius: 99, marginBottom: 4,
+                  backgroundColor: C.brownLight, paddingHorizontal: 10, paddingVertical: 4,
+                  borderRadius: 99, marginBottom: 4,   borderWidth: 1,
+                      borderColor: C.brownMid + "44",
                 }}>
                   <Ionicons name="tv" size={11} color={C.brownMid} />
-                  <Text style={{ fontSize: 10, fontFamily: "Poppins_600SemiBold", color: C.brownMid, letterSpacing: 0.5 }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Poppins_600SemiBold", color: C.brownMid, letterSpacing: 0.5 ,textTransform:"uppercase",}}>
                     Signage Control
                   </Text>
                 </View>

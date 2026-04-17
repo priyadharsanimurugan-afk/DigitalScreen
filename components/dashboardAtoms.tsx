@@ -63,7 +63,7 @@ interface TVProps {
 }
 
 export const TVNoticeBoard = ({ slotAssignment, imageList, selectedLayout, title }: TVProps) => {
-  const TV_W = 300;
+  const TV_W = 290;
   const TV_H = Math.round((TV_W * 9) / 16);
   const parts = selectedLayout.split("x").map(Number);
   const rows = parts[0] || 1;
@@ -77,6 +77,7 @@ export const TVNoticeBoard = ({ slotAssignment, imageList, selectedLayout, title
       <View style={{
         backgroundColor: "#111827",
         borderRadius: 16,
+    
         padding: 10,
         borderWidth: 3,
         borderColor: "#1F2937",
@@ -85,7 +86,7 @@ export const TVNoticeBoard = ({ slotAssignment, imageList, selectedLayout, title
         shadowOpacity: 0.4,
         shadowRadius: 16,
         elevation: 10,
-        width: TV_W + 28,
+        width: TV_W + 20,
       }}>
 
         {/* Bezel */}
@@ -98,16 +99,23 @@ export const TVNoticeBoard = ({ slotAssignment, imageList, selectedLayout, title
         }}>
 
           {/* Screen */}
-          <View style={{
-            width: TV_W,
-            height: TV_H,
-            backgroundColor: "#060D1A",
-            borderRadius: 8,
-            overflow: "hidden",
-          }}>
+       <View style={{
+  width: TV_W,
+  height: TV_H,
+  backgroundColor: "#060D1A",
+  borderRadius: 8,
+  overflow: "hidden",
+  position: "relative",
+}}>
+
 
             {/* Content area */}
-            <View style={{ flex: 1, padding: 6 }}>
+           <View style={{
+  flex: 1,
+  padding: 6,
+  overflow: "hidden",
+}}>
+
               {/* Title bar */}
               {title ? (
                 <View style={{
@@ -141,16 +149,22 @@ export const TVNoticeBoard = ({ slotAssignment, imageList, selectedLayout, title
               )}
 
               {/* Layout grid */}
-              <View style={{ flex: 1 }}>
-                <LayoutGrid
-                  layoutValue={selectedLayout}
-                  slots={slotAssignment}
-                  imageList={imageList}
-                  compact
-                  rows={rows}
-                  cols={cols}
-                />
-              </View>
+<View style={{
+  flex: 1,
+  overflow: "hidden",
+  maxWidth: "100%",
+  maxHeight: "100%",
+}}>
+  <LayoutGrid
+    layoutValue={selectedLayout}
+    slots={slotAssignment}
+    imageList={imageList}
+    compact
+    rows={rows}
+    cols={cols}
+  />
+</View>
+
             </View>
 
             {/* Screen reflection */}

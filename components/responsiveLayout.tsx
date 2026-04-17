@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, useWindowDimensions, Platform } from 'react-native';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Navbar from '../app/navbar';
 import BottomTabs from '../app/bottomTabs';
 
@@ -9,20 +9,24 @@ interface ResponsiveLayoutProps {
 
 export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   const { width } = useWindowDimensions();
-  const isMobile = width < 768; // Mobile breakpoint
+
+  // Show bottom tabs on mobile AND tablet (everything below desktop)
+  const showBottomTabs = width < 1024;
+
+
 
   return (
     <View style={styles.container}>
       {/* Top Navbar - Always visible */}
-      <Navbar showBottomTabs={isMobile} />
-      
+      <Navbar showBottomTabs={showBottomTabs} />
+
       {/* Main Content */}
       <View style={styles.content}>
         {children}
       </View>
-      
-      {/* Bottom Tabs - Only on mobile */}
-      {isMobile && <BottomTabs />}
+
+      {/* Bottom Tabs - Mobile & Tablet */}
+      {showBottomTabs && <BottomTabs />}
     </View>
   );
 }

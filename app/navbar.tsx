@@ -46,7 +46,6 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
 
-  // Responsive breakpoints
   const isMobile = width < 768;
   const isTablet = width >= 768 && width < 1024;
   const isDesktop = width >= 1024;
@@ -55,18 +54,13 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', route: '/dashboard' },
-    { id: 'sedntv', label: 'Send to Tv', icon: 'tv-outline', activeIcon: 'tv', route: '/sendtv' },
+    { id: 'sendtv', label: 'Send to TV', icon: 'tv-outline', activeIcon: 'tv', route: '/sendtv' },
     { id: 'devices', label: 'Devices', icon: 'hardware-chip-outline', activeIcon: 'hardware-chip', route: '/device' },
     { id: 'media', label: 'Media', icon: 'images-outline', activeIcon: 'images', route: '/media' },
   ];
 
-  const getUserInitials = () => {
-    return 'AD';
-  };
-
-  const handleNavigation = (route: string | any) => {
-    router.push(route);
-  };
+  const getUserInitials = () => 'AD';
+  const handleNavigation = (route: string | any) => router.push(route);
 
   const handleLogout = () => {
     setProfileModalVisible(false);
@@ -77,247 +71,196 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
     setShowLogoutConfirm(false);
     await clearTokens();
     notifyAuthChange();
-    router.replace("/login");
+    router.replace('/login');
   };
 
-  const cancelLogout = () => {
-    setShowLogoutConfirm(false);
-  };
+  const cancelLogout = () => setShowLogoutConfirm(false);
 
-  // Dynamic styles based on screen size
-  const getResponsiveStyles = () => {
-    return {
-      navbarPadding: isDesktop ? 32 : isTablet ? 20 : 16,
-      logoSize: isDesktop ? 48 : isTablet ? 40 : 36,
-      logoFontSize: isDesktop ? 24 : isTablet ? 20 : 18,
-      navGap: isDesktop ? 16 : isTablet ? 12 : 8,
-      navItemPadding: isDesktop ? 20 : isTablet ? 16 : 12,
-      avatarSize: isDesktop ? 44 : isTablet ? 40 : 36,
-    };
-  };
+  const avatarSize = isDesktop ? 44 : isTablet ? 40 : 36;
+  const logoSize = isDesktop ? 48 : isTablet ? 40 : 46;
 
-  const responsive = getResponsiveStyles();
+  // ─────────────────────────────────────────────────────────
+  // MOBILE & TABLET:  [Logo]   Screen Nova   [AD]
+  // ─────────────────────────────────────────────────────────
+  if (!isDesktop) {
+    return (
+      <>
+        <View style={[
+          styles.navbarMobileTablet,
+          {
+            paddingHorizontal: isTablet ? 20 : 16,
+            marginTop: showBottomTabs ? 39 : 0,
+          }
+        ]}>
 
+          {/* LEFT — Logo icon only */}
+          <TouchableOpacity
+            onPress={() => handleNavigation('/dashboard')}
+            style={styles.logoIconWrapper}
+          >
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={{ width: logoSize, height: logoSize }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+
+          {/* CENTER — App name, absolutely centered in the bar */}
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.centerAbsolute}>
+              <Text style={[styles.logoText, { fontSize: isTablet ? 20 : 18 }]}>
+                Screen Nova
+              </Text>
+            </View>
+          </View>
+
+          {/* RIGHT — AD Avatar */}
+          <TouchableOpacity
+            style={[styles.avatarButton, { backgroundColor: COLORS.background }]}
+            onPress={() => setProfileModalVisible(true)}
+          >
+            <View style={[
+              styles.avatarPlaceholder,
+              { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }
+            ]}>
+              <Text style={[styles.avatarInitials, { fontSize: 14 }]}>
+                {getUserInitials()}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Profile Modal */}
+        <Modal animationType="fade" transparent visible={profileModalVisible} onRequestClose={() => setProfileModalVisible(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setProfileModalVisible(false)}>
+            <View style={[styles.modalContent, { width: isTablet ? 300 : 280, right: isTablet ? 20 : 16, top: 80 }]}>
+              <View style={styles.modalHeader}>
+                <View style={[styles.modalAvatarPlaceholder, { width: 48, height: 48, borderRadius: 24 }]}>
+                  <Text style={[styles.modalAvatarInitials, { fontSize: 18 }]}>{getUserInitials()}</Text>
+                </View>
+                <View style={styles.modalUserInfo}>
+                  <Text style={[styles.modalUserName, { fontSize: 14 }]}>Administrator</Text>
+                </View>
+              </View>
+              <View style={styles.modalDivider} />
+              <TouchableOpacity style={styles.modalItem} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
+                <Text style={[styles.modalItemText, styles.logoutText]}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Logout Confirm Modal */}
+        <Modal animationType="fade" transparent visible={showLogoutConfirm} onRequestClose={cancelLogout}>
+          <Pressable style={styles.modalOverlay} onPress={cancelLogout}>
+            <View style={[styles.confirmModalContent, { width: isTablet ? 360 : 320, padding: 20 }]}>
+              <View style={styles.confirmModalHeader}>
+                <Ionicons name="log-out-outline" size={24} color={COLORS.danger} />
+                <Text style={[styles.confirmModalTitle, { fontSize: 18 }]}>Confirm Logout</Text>
+              </View>
+              <Text style={[styles.confirmModalMessage, { fontSize: 14 }]}>
+                Are you sure you want to logout from your account?
+              </Text>
+              <View style={styles.confirmModalButtons}>
+                <TouchableOpacity style={[styles.confirmButton, styles.cancelButton]} onPress={cancelLogout}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.confirmButton, styles.logoutButton]} onPress={confirmLogout}>
+                  <Text style={styles.logoutButtonText}>Logout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+      </>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // DESKTOP:  [Logo + Screen Nova]   [Nav Items]   [Admin + AD]
+  // ─────────────────────────────────────────────────────────
   return (
     <>
-      <View style={[
-        styles.navbar,
-        { paddingHorizontal: responsive.navbarPadding },
-        showBottomTabs && styles.navbarMobile
-      ]}>
-        {/* Logo Section */}
-        <TouchableOpacity 
-          onPress={() => handleNavigation('/dashboard')} 
-          style={[styles.logoContainer, { gap: isTablet ? 12 : 8 }]}
-        >
-          <Image 
-            source={require('../assets/images/logo.png')} 
-            style={[styles.logoImage, { 
-              width: responsive.logoSize, 
-              height: responsive.logoSize 
-            }]}
-            resizeMode="contain"
-          />
-     
-            <Text style={[styles.logoText, { fontSize: responsive.logoFontSize }]}>
-              Screen Nova
-            </Text>
+      <View style={[styles.navbar, { paddingHorizontal: 32 }]}>
 
+        {/* Logo + App Name */}
+        <TouchableOpacity onPress={() => handleNavigation('/dashboard')} style={styles.logoContainer}>
+          <Image source={require('../assets/images/logo.png')} style={{ width: 48, height: 48 }} resizeMode="contain" />
+          <Text style={[styles.logoText, { fontSize: 24 }]}>Screen Nova</Text>
         </TouchableOpacity>
 
-        {/* Navigation Items - Only show on tablet/desktop */}
-        {!showBottomTabs && (
-          <View style={[styles.navItems, { gap: responsive.navGap }]}>
-            {navItems.map((item) => {
-              const isActive = pathname === item.route;
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.navItem, 
-                    { paddingHorizontal: responsive.navItemPadding },
-                    isActive && styles.navItemActive
-                  ]}
-                  onPress={() => handleNavigation(item.route)}
-                >
-                  <Ionicons
-                    name={isActive ? item.activeIcon : item.icon}
-                    size={isDesktop ? 22 : isTablet ? 20 : 18}
-                    color={isActive ? COLORS.primary : COLORS.textLight}
-                  />
-                  <Text style={[
-                    styles.navLabel, 
-                    { fontSize: isDesktop ? 15 : isTablet ? 14 : 13 },
-                    isActive && styles.navLabelActive
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {isActive && <View style={styles.activeIndicator} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
+        {/* Nav Items */}
+        <View style={styles.navItems}>
+          {navItems.map((item) => {
+            const isActive = pathname === item.route;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.navItem, isActive && styles.navItemActive]}
+                onPress={() => handleNavigation(item.route)}
+              >
+                <Ionicons
+                  name={isActive ? item.activeIcon as any : item.icon as any}
+                  size={22}
+                  color={isActive ? COLORS.primary : COLORS.textLight}
+                />
+                <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
+                {isActive && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-        {/* User Profile Section */}
-        <TouchableOpacity 
-          style={[
-            styles.profileSection,
-            { paddingHorizontal: isDesktop ? 16 : isTablet ? 12 : 8 }
-          ]} 
-          onPress={() => setProfileModalVisible(true)}
-        >
-          {!showBottomTabs && !isMobile && (
-            <View style={styles.profileInfo}>
-              <Text style={[styles.userName, { fontSize: isDesktop ? 14 : isTablet ? 13 : 12 }]}>
-                Administrator
-              </Text>
-              {isDesktop && (
-                <Text style={styles.userRole}>Super Admin</Text>
-              )}
-            </View>
-          )}
-          <View style={[
-            styles.avatarPlaceholder, 
-            { 
-              width: responsive.avatarSize, 
-              height: responsive.avatarSize,
-              borderRadius: responsive.avatarSize / 2 
-            }
-          ]}>
-            <Text style={[
-              styles.avatarInitials, 
-              { fontSize: isDesktop ? 16 : isTablet ? 15 : 14 }
-            ]}>
-              {getUserInitials()}
-            </Text>
+        {/* Administrator + AD Avatar */}
+        <TouchableOpacity style={styles.profileSection} onPress={() => setProfileModalVisible(true)}>
+          <View style={styles.profileInfo}>
+            <Text style={styles.userName}>Administrator</Text>
+          </View>
+          <View style={[styles.avatarPlaceholder, { width: 44, height: 44, borderRadius: 22 }]}>
+            <Text style={[styles.avatarInitials, { fontSize: 16 }]}>{getUserInitials()}</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       {/* Profile Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={profileModalVisible}
-        onRequestClose={() => setProfileModalVisible(false)}
-      >
+      <Modal animationType="fade" transparent visible={profileModalVisible} onRequestClose={() => setProfileModalVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setProfileModalVisible(false)}>
-          <View style={[
-            styles.modalContent,
-            { 
-              width: isDesktop ? 320 : isTablet ? 300 : 280,
-              right: isDesktop ? 32 : isTablet ? 24 : 20,
-              top: isDesktop ? 80 : isTablet ? 70 : 60
-            },
-            showBottomTabs && styles.modalContentMobile
-          ]}>
+          <View style={[styles.modalContent, { width: 320, right: 32, top: 80 }]}>
             <View style={styles.modalHeader}>
-              <View style={[
-                styles.modalAvatarPlaceholder,
-                { 
-                  width: isDesktop ? 56 : isTablet ? 52 : 48,
-                  height: isDesktop ? 56 : isTablet ? 52 : 48,
-                  borderRadius: isDesktop ? 28 : isTablet ? 26 : 24
-                }
-              ]}>
-                <Text style={[
-                  styles.modalAvatarInitials,
-                  { fontSize: isDesktop ? 20 : isTablet ? 19 : 18 }
-                ]}>
-                  {getUserInitials()}
-                </Text>
+              <View style={[styles.modalAvatarPlaceholder, { width: 56, height: 56, borderRadius: 28 }]}>
+                <Text style={[styles.modalAvatarInitials, { fontSize: 20 }]}>{getUserInitials()}</Text>
               </View>
               <View style={styles.modalUserInfo}>
-                <Text style={[
-                  styles.modalUserName,
-                  { fontSize: isDesktop ? 16 : isTablet ? 15 : 14 }
-                ]}>
-                  Administrator
-                </Text>
-                <Text style={styles.modalUserEmail}>admin@screennova.com</Text>
+                <Text style={[styles.modalUserName, { fontSize: 16 }]}>Administrator</Text>
               </View>
             </View>
-
             <View style={styles.modalDivider} />
-
             <TouchableOpacity style={styles.modalItem} onPress={handleLogout}>
-              <Ionicons 
-                name="log-out-outline" 
-                size={isDesktop ? 22 : isTablet ? 21 : 20} 
-                color={COLORS.danger} 
-              />
-              <Text style={[
-                styles.modalItemText, 
-                styles.logoutText,
-                { fontSize: isDesktop ? 15 : isTablet ? 14 : 13 }
-              ]}>
-                Logout
-              </Text>
+              <Ionicons name="log-out-outline" size={22} color={COLORS.danger} />
+              <Text style={[styles.modalItemText, styles.logoutText]}>Logout</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
 
-      {/* Logout Confirmation Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showLogoutConfirm}
-        onRequestClose={cancelLogout}
-      >
+      {/* Logout Confirm Modal */}
+      <Modal animationType="fade" transparent visible={showLogoutConfirm} onRequestClose={cancelLogout}>
         <Pressable style={styles.modalOverlay} onPress={cancelLogout}>
-          <View style={[
-            styles.confirmModalContent,
-            { 
-              width: isDesktop ? 400 : isTablet ? 360 : 320,
-              padding: isDesktop ? 28 : isTablet ? 24 : 20
-            }
-          ]}>
+          <View style={[styles.confirmModalContent, { width: 400, padding: 28 }]}>
             <View style={styles.confirmModalHeader}>
-              <Ionicons 
-                name="log-out-outline" 
-                size={isDesktop ? 28 : isTablet ? 26 : 24} 
-                color={COLORS.danger} 
-              />
-              <Text style={[
-                styles.confirmModalTitle,
-                { fontSize: isDesktop ? 20 : isTablet ? 19 : 18 }
-              ]}>
-                Confirm Logout
-              </Text>
+              <Ionicons name="log-out-outline" size={28} color={COLORS.danger} />
+              <Text style={[styles.confirmModalTitle, { fontSize: 20 }]}>Confirm Logout</Text>
             </View>
-            
-            <Text style={[
-              styles.confirmModalMessage,
-              { fontSize: isDesktop ? 16 : isTablet ? 15 : 14 }
-            ]}>
+            <Text style={[styles.confirmModalMessage, { fontSize: 16 }]}>
               Are you sure you want to logout from your account?
             </Text>
-
-            <View style={[styles.confirmModalButtons, { gap: isDesktop ? 16 : 12 }]}>
-              <TouchableOpacity 
-                style={[styles.confirmButton, styles.cancelButton]} 
-                onPress={cancelLogout}
-              >
-                <Text style={[
-                  styles.cancelButtonText,
-                  { fontSize: isDesktop ? 15 : isTablet ? 14 : 13 }
-                ]}>
-                  Cancel
-                </Text>
+            <View style={styles.confirmModalButtons}>
+              <TouchableOpacity style={[styles.confirmButton, styles.cancelButton]} onPress={cancelLogout}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.confirmButton, styles.logoutButton]} 
-                onPress={confirmLogout}
-              >
-                <Text style={[
-                  styles.logoutButtonText,
-                  { fontSize: isDesktop ? 15 : isTablet ? 14 : 13 }
-                ]}>
-                  Logout
-                </Text>
+              <TouchableOpacity style={[styles.confirmButton, styles.logoutButton]} onPress={confirmLogout}>
+                <Text style={styles.logoutButtonText}>Logout</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -328,6 +271,7 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
 }
 
 const styles = StyleSheet.create({
+  // ── Shared navbar base ──
   navbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -342,31 +286,65 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  navbarMobile: {
-    paddingVertical: 8,
-    marginTop: 39,
+
+  // ── Mobile / Tablet navbar (3-column: left | center | right) ──
+  navbarMobileTablet: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
+
+  logoIconWrapper: {
+    // just the logo image, no text
+  },
+
+  // Absolutely centered overlay for app name
+  centerAbsolute: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Avatar button on right
+  avatarButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+
+  // ── Desktop logo row ──
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  logoImage: {
-    resizeMode: 'contain',
+    gap: 10,
   },
   logoText: {
     fontFamily: 'Poppins_700Bold',
     color: COLORS.primary,
     letterSpacing: -0.5,
   },
+
+  // ── Desktop nav items ──
   navItems: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 10,
     position: 'relative',
   },
@@ -375,6 +353,7 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
     color: COLORS.textLight,
   },
   navLabelActive: {
@@ -390,11 +369,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: 1,
   },
+
+  // ── Desktop profile section ──
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: 6,
+    paddingHorizontal: 16,
     borderRadius: 12,
     backgroundColor: COLORS.background,
   },
@@ -403,6 +385,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
     color: COLORS.text,
   },
   userRole: {
@@ -411,6 +394,8 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginTop: 2,
   },
+
+  // ── Shared avatar ──
   avatarPlaceholder: {
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
@@ -420,25 +405,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     color: COLORS.surface,
   },
+
+  // ── Modal ──
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   modalContent: {
     backgroundColor: COLORS.surface,
     position: 'absolute',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  modalContentMobile: {
-    right: 16,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -462,12 +444,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     color: COLORS.text,
   },
-  modalUserEmail: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
   modalDivider: {
     height: 1,
     backgroundColor: COLORS.border,
@@ -478,23 +454,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingVertical: 10,
+    paddingHorizontal: 4,
     borderRadius: 8,
   },
   modalItemText: {
     fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
     color: COLORS.text,
   },
   logoutText: {
     color: COLORS.danger,
   },
+
+  // ── Confirm Modal ──
   confirmModalContent: {
     backgroundColor: COLORS.surface,
     borderRadius: 16,
+    alignSelf: 'center',
+    marginTop: 'auto',
+    marginBottom: 'auto',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
   },
   confirmModalHeader: {
     flexDirection: 'row',
@@ -514,6 +497,7 @@ const styles = StyleSheet.create({
   },
   confirmModalButtons: {
     flexDirection: 'row',
+    gap: 12,
   },
   confirmButton: {
     flex: 1,
@@ -532,10 +516,12 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
     color: COLORS.text,
   },
   logoutButtonText: {
     fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
     color: COLORS.surface,
   },
 });
