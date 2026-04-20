@@ -92,42 +92,30 @@ export const LayoutArrangeModal = ({
   }, [selectedImageIds]);
 
   // 👇 UPDATE this useEffect to preserve existing slot assignments when changing layouts:
-  useEffect(() => {
-    if (!selectedLayout) return;
-    
-    // Check if we're coming from an existing assignment with the same layout
-    if (initialSlotAssignment && 
-        initialSlotAssignment.length > 0 && 
-        initialLayout === selectedLayout.value) {
-      // Keep existing slots
-      setSlots(initialSlotAssignment.map(slot => [...slot]));
-    } else {
-      // Create new slot assignment, trying to preserve images where possible
-      const next: number[][] = Array.from({ length: selectedLayout.slots }, (_, idx) => {
-        // If this slot index existed before and had images, keep them
-        if (idx < slots.length && slots[idx].length > 0) {
-          return [...slots[idx]];
-        }
-        return [];
-      });
-      
-      // If we have localSelectedIds but empty slots, distribute them
-      const allPlacedIds = next.flat();
-      const unplacedIds = localSelectedIds.filter(id => !allPlacedIds.includes(id));
-      
-      if (unplacedIds.length > 0) {
-        // Distribute unplaced images across slots
-        unplacedIds.forEach((id, i) => {
-          const slotIdx = i % selectedLayout.slots;
-          next[slotIdx].push(id);
-        });
-      }
-      
-      setSlots(next);
+useEffect(() => {
+  if (!selectedLayout) return;
+  
+  // If we have existing slot assignment AND same layout, preserve exactly as is
+  if (initialSlotAssignment && 
+      initialSlotAssignment.length > 0 && 
+      initialLayout === selectedLayout.value) {
+    setSlots(initialSlotAssignment.map(slot => [...slot]));
+    return;
+  }
+  
+  // For layout changes: preserve slot contents by index position
+  // (slot 0 stays in slot 0, slot 1 in slot 1, etc.)
+  const next: number[][] = Array.from({ length: selectedLayout.slots }, (_, idx) => {
+    // If this slot existed before, keep its images
+    if (idx < slots.length && slots[idx].length > 0) {
+      return [...slots[idx]];
     }
-    
-    setDraggingId(null);
-  }, [selectedLayout, localSelectedIds]);
+    return [];
+  });
+  
+  setSlots(next);
+  setDraggingId(null);
+}, [selectedLayout]);
 
   // Keep the existing useEffect for selectedImageIds
   useEffect(() => {

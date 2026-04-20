@@ -3,7 +3,6 @@ import {
   Image, KeyboardAvoidingView, Platform, TouchableWithoutFeedback,
   Keyboard, ScrollView, View, Text, TextInput,
   TouchableOpacity, useWindowDimensions,
-  Linking,
 } from "react-native";
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
 import { router } from "expo-router";
@@ -28,11 +27,12 @@ export default function Login() {
   const [loaded] = useFonts({
     Poppins_400Regular,
     Poppins_600SemiBold,
-    Poppins_700Bold
+    Poppins_700Bold,
   });
 
   const { login, loading, errors } = useLogin();
 
+  // Load remembered credentials on mount
   useEffect(() => {
     const loadCredentials = async () => {
       const creds = await getRememberedCredentials();
@@ -45,34 +45,20 @@ export default function Login() {
     loadCredentials();
   }, []);
 
-  const handleLogin = async () => {
-    const res = await login({
-      loginId: id.trim(),
-      password: pw,
-    });
-
-    if (!res) return;
-
-    // Handle remember me
-    if (rememberMe) {
-      await saveRememberedCredentials(id.trim(), pw);
-    } else {
-      await clearRememberedCredentials();
-    }
-
-    // Navigate based on role
-    // Just go to root → layout will handle redirect
-    // 🔥 CRITICAL FIX
-    notifyAuthChange();
-    router.replace("/");
-  };
-
-  // Load saved credentials if remember me was checked
+  // Auto-focus login ID field and open keyboard automatically
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
-      const savedId = localStorage.getItem('remembered_login_id');
-      const savedRemember = localStorage.getItem('remember_me') === 'true';
-      
+    if (!loaded) return;
+    const timer = setTimeout(() => {
+      idRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [loaded]);
+
+  // Web: load remembered credentials from localStorage
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+      const savedId = localStorage.getItem("remembered_login_id");
+      const savedRemember = localStorage.getItem("remember_me") === "true";
       if (savedRemember && savedId) {
         setId(savedId);
         setRememberMe(true);
@@ -80,14 +66,16 @@ export default function Login() {
     }
   }, []);
 
-  // Add web-specific styles only on client-side
+  // Web: inject CSS to remove focus outline on inputs
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      const style = document.createElement('style');
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      const style = document.createElement("style");
       style.textContent = `
-        input:focus { 
-          outline: none !important; 
-          box-shadow: none !important; 
+        * { box-sizing: border-box; }
+        html, body, #root { height: 100%; min-height: 100vh; margin: 0; padding: 0; }
+        input:focus {
+          outline: none !important;
+          box-shadow: none !important;
         }
         input.error-input:focus {
           outline: none !important;
@@ -96,7 +84,6 @@ export default function Login() {
         }
       `;
       document.head.appendChild(style);
-      
       return () => {
         document.head.removeChild(style);
       };
@@ -112,111 +99,119 @@ export default function Login() {
     }
   }, [errors]);
 
+  const handleLogin = async () => {
+    const res = await login({
+      loginId: id.trim(),
+      password: pw,
+    });
+
+    if (!res) return;
+
+    if (rememberMe) {
+      await saveRememberedCredentials(id.trim(), pw);
+    } else {
+      await clearRememberedCredentials();
+    }
+
+    notifyAuthChange();
+    router.replace("/");
+  };
+
   if (!loaded) return null;
-  const Wrapper = mobile ? ScrollView : View;
-const content = (
-  <Wrapper
-    {...(mobile
-      ? { contentContainerStyle: s.scroll, keyboardShouldPersistTaps: "handled" }
-      : {})}
-    style={!mobile ? s.scroll : undefined}
-  >
-      <View style={s.bg}>
-        <View style={s.blob1} />
-        <View style={s.blob2} />
 
-        <View style={[s.card, mobile && s.cardM]}>
-          <View style={s.strip} />
+  const cardContent = (
+    <View style={s.bg}>
+      <View style={s.blob1} />
+      <View style={s.blob2} />
 
-          <View style={s.inner}>
-            <View style={s.logoRow}>
-              <View style={s.logoBox}>
-                <Image
-                  source={require("../assets/images/logo.png")}
-                  style={s.logo}
-                  resizeMode="contain"
-                />
-              </View>
+      <View style={[s.card, mobile && s.cardM]}>
+        <View style={s.strip} />
 
-              <View>
-                <Text style={[s.brand, { fontFamily: FONTS.bold }]}>Screenova</Text>
-                <Text style={[s.tagline, { fontFamily: FONTS.semiBold }]}>
-                  DIGITAL SIGNAGE PORTAL
-                </Text>
-              </View>
+        <View style={s.inner}>
+          {/* Logo Row */}
+          <View style={s.logoRow}>
+            <View style={s.logoBox}>
+              <Image
+                source={require("../assets/images/logo.png")}
+                style={s.logo}
+                resizeMode="contain"
+              />
             </View>
+            <View>
+              <Text style={[s.brand, { fontFamily: FONTS.bold }]}>Screenova</Text>
+              <Text style={[s.tagline, { fontFamily: FONTS.semiBold }]}>
+                DIGITAL SIGNAGE PORTAL
+              </Text>
+            </View>
+          </View>
 
-            <View style={s.div} />
+          <View style={s.div} />
 
-            <Text style={[s.head, { fontFamily: FONTS.bold }]}>
-              Welcome back 👋
-            </Text>
-            <Text style={[s.sub, { fontFamily: FONTS.regular }]}>
-              Sign in to continue
-            </Text>
+          <Text style={[s.head, { fontFamily: FONTS.bold }]}>Welcome back 👋</Text>
+          <Text style={[s.sub, { fontFamily: FONTS.regular }]}>Sign in to continue</Text>
 
-            {/* General Error Display */}
-            {errors.general ? (
-              <View style={s.errorContainer}>
-                <Text style={[s.errorText, { fontFamily: FONTS.regular }]}>
-                  {errors.general}
-                </Text>
-              </View>
-            ) : null}
+          {/* General Error */}
+          {errors.general ? (
+            <View style={s.errorContainer}>
+              <Text style={[s.errorText, { fontFamily: FONTS.regular }]}>
+                {errors.general}
+              </Text>
+            </View>
+          ) : null}
 
-            {/* Login ID Input */}
-            <View style={s.fWrap}>
-              <Text style={[s.lbl, { fontFamily: FONTS.semiBold }]}>Login ID</Text>
+          {/* Login ID */}
+          <View style={s.fWrap}>
+            <Text style={[s.lbl, { fontFamily: FONTS.semiBold }]}>Login ID</Text>
+            <TextInput
+              ref={idRef}
+              style={[
+                s.inp,
+                errors.id ? s.inpError : foc === "id" && s.inpF,
+                { fontFamily: FONTS.regular },
+              ]}
+              placeholder="Enter login ID"
+              placeholderTextColor={COLORS.textMuted}
+              value={id}
+              onChangeText={setId}
+              onFocus={() => setFoc("id")}
+              onBlur={() => setFoc(null)}
+              onSubmitEditing={() => pwRef.current?.focus()}
+              returnKeyType="next"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {errors.id && (
+              <Text style={[s.fieldError, { fontFamily: FONTS.regular }]}>
+                {errors.id}
+              </Text>
+            )}
+          </View>
+
+          {/* Password */}
+          <View style={s.fWrap}>
+            <Text style={[s.lbl, { fontFamily: FONTS.semiBold }]}>Password</Text>
+            <View style={s.passwordContainer}>
               <TextInput
-                ref={idRef}
+                ref={pwRef}
                 style={[
                   s.inp,
-                  errors.id ? s.inpError : foc === "id" && s.inpF,
-                  { fontFamily: FONTS.regular }
+                  s.passwordInput,
+                  errors.pw ? s.inpError : foc === "pw" && s.inpF,
+                  { fontFamily: FONTS.regular },
                 ]}
-                placeholder="Enter login ID"
+                placeholder="••••••••"
                 placeholderTextColor={COLORS.textMuted}
-                value={id}
-                onChangeText={setId}
-                onFocus={() => setFoc("id")}
+                secureTextEntry={!showPassword}
+                value={pw}
+                onChangeText={setPw}
+                onFocus={() => setFoc("pw")}
                 onBlur={() => setFoc(null)}
-                onSubmitEditing={() => pwRef.current?.focus()}
-                returnKeyType="next"
+                onSubmitEditing={handleLogin}
+                returnKeyType="done"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {errors.id && (
-                <Text style={[s.fieldError, { fontFamily: FONTS.regular }]}>
-                  {errors.id}
-                </Text>
-              )}
-            </View>
-
-            {/* Password Input */}
-            <View style={s.fWrap}>
-              <Text style={[s.lbl, { fontFamily: FONTS.semiBold }]}>Password</Text>
-              <View style={s.passwordContainer}>
-                <TextInput
-                  ref={pwRef}
-                  style={[
-                    s.inp,
-                    s.passwordInput,
-                    errors.pw ? s.inpError : foc === "pw" && s.inpF,
-                    { fontFamily: FONTS.regular }
-                  ]}
-                  placeholder="••••••••"
-                  placeholderTextColor={COLORS.textMuted}
-                  secureTextEntry={!showPassword}
-                  value={pw}
-                  onChangeText={setPw}
-                  onFocus={() => setFoc("pw")}
-                  onBlur={() => setFoc(null)}
-                  onSubmitEditing={handleLogin}
-                  returnKeyType="done"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-               <TouchableOpacity 
+              <TouchableOpacity
                 style={s.eyeButton}
                 onPress={() => setShowPassword(!showPassword)}
                 activeOpacity={0.7}
@@ -227,77 +222,94 @@ const content = (
                   color="#afbfd1"
                 />
               </TouchableOpacity>
-
-              </View>
-              {errors.pw && (
-                <Text style={[s.fieldError, { fontFamily: FONTS.regular }]}>
-                  {errors.pw}
-                </Text>
-              )}
             </View>
+            {errors.pw && (
+              <Text style={[s.fieldError, { fontFamily: FONTS.regular }]}>
+                {errors.pw}
+              </Text>
+            )}
+          </View>
 
-            {/* Remember Me Only */}
-            <View style={s.row}>
-              <TouchableOpacity 
-                style={s.checkboxContainer} 
-                onPress={() => setRememberMe(!rememberMe)}
-                activeOpacity={0.7}
-              >
-                <View style={[s.checkbox, rememberMe && s.checkboxChecked]}>
-                  {rememberMe && (
-                    <Text style={s.checkmark}>✓</Text>
-                  )}
-                </View>
-                <Text style={[s.rememberText, { fontFamily: FONTS.regular }]}>
-                  Remember me
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* LOGIN BUTTON */}
+          {/* Remember Me */}
+          <View style={s.row}>
             <TouchableOpacity
-              style={[s.btn, loading && s.btnDisabled]}
-              onPress={handleLogin}
-              activeOpacity={0.88}
-              disabled={loading}
+              style={s.checkboxContainer}
+              onPress={() => setRememberMe(!rememberMe)}
+              activeOpacity={0.7}
             >
-              <Text style={[s.btnT, { fontFamily: FONTS.bold }]}>
-                {loading ? "Signing in..." : "Sign In →"}
+              <View style={[s.checkbox, rememberMe && s.checkboxChecked]}>
+                {rememberMe && <Text style={s.checkmark}>✓</Text>}
+              </View>
+              <Text style={[s.rememberText, { fontFamily: FONTS.regular }]}>
+                Remember me
               </Text>
             </TouchableOpacity>
-
           </View>
+
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={[s.btn, loading && s.btnDisabled]}
+            onPress={handleLogin}
+            activeOpacity={0.88}
+            disabled={loading}
+          >
+            <Text style={[s.btnT, { fontFamily: FONTS.bold }]}>
+              {loading ? "Signing in..." : "Sign In →"}
+            </Text>
+          </TouchableOpacity>
         </View>
-      <Text style={{ fontSize: 13, color: "#64748B" ,marginTop: 20}}>
-  By continuing, you agree to our{" "}
-  <Text
-    style={{
-      color: "#1E3A8A",
-      fontWeight: "600",
-      textDecorationLine: "underline",
-      cursor: "pointer", // works on web
-    }}
-   onPress={() => router.push("/privacyPolicy")}
-  >
-    Privacy Policy
-  </Text>
-  .
-</Text>
       </View>
-   
-   </Wrapper>
-   
+
+      <Text style={{ fontSize: 13, color: "#64748B", marginTop: 20 }}>
+        By continuing, you agree to our{" "}
+        <Text
+          style={{
+            color: "#1E3A8A",
+            fontWeight: "600",
+            textDecorationLine: "underline",
+          }}
+          onPress={() => router.push("/privacyPolicy")}
+        >
+          Privacy Policy
+        </Text>
+        .
+      </Text>
+    </View>
   );
 
-  if (Platform.OS === "web") return <View style={s.root}>{content}</View>;
+  // ─── WEB / TV ────────────────────────────────────────────────────────────────
+  if (Platform.OS === "web") {
+    return (
+      <View style={s.root}>
+        <ScrollView
+          contentContainerStyle={s.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {cardContent}
+        </ScrollView>
+      </View>
+    );
+  }
 
+  // ─── iOS / Android ───────────────────────────────────────────────────────────
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={s.root}
       >
-        {content}
+        {mobile ? (
+          <ScrollView
+            contentContainerStyle={s.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {cardContent}
+          </ScrollView>
+        ) : (
+          cardContent
+        )}
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );

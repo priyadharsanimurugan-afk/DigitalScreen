@@ -240,57 +240,6 @@ function Pin({ color }: { color: string }) {
   );
 }
 
-// Add this custom hook before ImageCell component
-function useVeryMildAnimation(slotIndex: number) {
-  const translateY = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(1)).current;
-  
-  useEffect(() => {
-    // Extremely subtle floating animation (±2px)
-    const floatAnim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: -2,
-          duration: 8000 + (slotIndex * 500),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 2,
-          duration: 8000 + (slotIndex * 500),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    
-    // Very gentle pulse animation (0.5% scale change)
-    const pulseAnim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scale, {
-          toValue: 1.002,
-          duration: 6000 + (slotIndex * 400),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scale, {
-          toValue: 0.998,
-          duration: 6000 + (slotIndex * 400),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    
-    floatAnim.start();
-    pulseAnim.start();
-    
-    return () => {
-      floatAnim.stop();
-      pulseAnim.stop();
-    };
-  }, [slotIndex]);
-  
-  return { translateY, scale };
-}
-
-
 // ─── ImageCell ────────────────────────────────────────────────────────────────
 function ImageCell({ img, pinColor, slotIndex }: {
   img: ImageObject | null;
@@ -300,10 +249,27 @@ function ImageCell({ img, pinColor, slotIndex }: {
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null);
   const [natSize,  setNatSize]  = useState<{ w: number; h: number } | null>(null);
   const [loaded,   setLoaded]   = useState(false);
-  const [imageLayout, setImageLayout] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
-    // Add this line - the very mild animation hook
-  const { translateY, scale } = useVeryMildAnimation(slotIndex);
+  const anim = useMildAnimation(slotIndex);
+  const effectIndex = slotIndex % 3;
+
+
+const getEffectStyle = () => {
+  return {
+    transform: [
+      {
+        scale: anim.interpolate({
+          inputRange: [-1, 1],
+          outputRange: [0.98, 1.04], // 👈 breathing effect
+        }),
+      },
+    ],
+  };
+};
+
+
+
+
 
   useEffect(() => {
     if (!img?.imageurl) return;
@@ -316,42 +282,13 @@ function ImageCell({ img, pinColor, slotIndex }: {
     return () => { cancelled = true; };
   }, [img?.imageurl]);
 
-  // Calculate actual image position when contained
-  useEffect(() => {
-    if (cellSize && natSize) {
-      const cellW = cellSize.w;
-      const cellH = cellSize.h;
-      const imgW = natSize.w;
-      const imgH = natSize.h;
-      
-      const cellRatio = cellW / cellH;
-      const imgRatio = imgW / imgH;
-      
-      let renderW, renderH, renderX, renderY;
-      
-      if (imgRatio > cellRatio) {
-        renderW = cellW;
-        renderH = cellW / imgRatio;
-        renderX = 0;
-        renderY = (cellH - renderH) / 2;
-      } else {
-        renderH = cellH;
-        renderW = cellH * imgRatio;
-        renderX = (cellW - renderW) / 2;
-        renderY = 0;
-      }
-      
-      setImageLayout({ x: renderX, y: renderY, w: renderW, h: renderH });
-    }
-  }, [cellSize, natSize]);
-
   const pinPos = cellSize && natSize
     ? computePinPos(cellSize.w, cellSize.h, natSize.w, natSize.h)
     : cellSize
       ? { left: cellSize.w / 2 - PIN_WIDTH / 2, top: isMobile ? -4 : -12 }
       : null;
 
- return (
+  return (
     <View
       style={st.cellWrapper}
       onLayout={(e) =>
@@ -362,74 +299,52 @@ function ImageCell({ img, pinColor, slotIndex }: {
       }
     >
       <View style={st.floatCard}>
-        {img?.imageurl ? (
-          <>
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: "#2A3462" }]} />
-            
-            {imageLayout && (
-              <Animated.View  // Changed from View to Animated.View
-                style={{
-                  position: "absolute",
-                  left: imageLayout.x,
-                  top: imageLayout.y,
-                  width: imageLayout.w,
-                  height: imageLayout.h,
-                  overflow: "visible",
-                  backgroundColor: "transparent",
-                  transform: [
-                    { translateY: translateY },
-                    { scale: scale }
-                  ],
-                  ...Platform.select({
-                    web: {
-                      boxShadow: "8px 8px 20px rgba(255,255,255,0.28)"
-                    },
-                    ios: {
-                      shadowColor: "#000000",
-                      shadowOffset: { width: 0, height: 40 },
-                      shadowOpacity: 0.65,
-                      shadowRadius: 80,
-                    },
-                    android: {
-                      elevation: 40,
-                      shadowColor: "#071597",
-                    },
-                  }),
-                }}
-              >
-                <Image
-                  source={{ uri: img.imageurl }}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    ...Platform.select({
-                      ios: {
-                        shadowColor: "#ffffff",
-                        shadowOffset: { width: 0, height: -8 },
-                        shadowOpacity: 0.75,
-                        shadowRadius: 25,
-                      },
-                      android: {
-                        borderWidth: 2,
-                        borderColor: "rgba(255,255,255,0.3)",
-                      },
-                      web: {
-                        boxShadow: "8px 8px 20px rgba(255,255,255,0.28)"
-                      },
-                    }),
-                  }}
-                  resizeMode="contain"
-                  onLoad={() => setLoaded(true)}
-                  onError={() => setLoaded(true)}
-                />
-              </Animated.View>
-            )}
-          </>
-        ) : (
-          <View style={st.emptySlot}>
-            <Text style={st.emptyIcon}>📌</Text>
-          </View>
-        )}
+<Animated.View style={[StyleSheet.absoluteFill, getEffectStyle()]}>
+  {img?.imageurl ? (
+    <Animated.Image
+      source={{ uri: img.imageurl }}
+      style={[
+        StyleSheet.absoluteFill,
+        {
+          // 🔥 LIGHT BLUE GLOW ONLY ON IMAGE
+          shadowColor: "#4FC3F7", // light blue
+          shadowOpacity: anim.interpolate({
+            inputRange: [-1, 1],
+            outputRange: [0.2, 0.6],
+          }),
+          shadowRadius: anim.interpolate({
+            inputRange: [-1, 1],
+            outputRange: [6, 18],
+          }),
+        
+        },
+      ]}
+      resizeMode="contain"
+      onLoad={() => setLoaded(true)}
+      onError={() => setLoaded(true)}
+    />
+  ) : (
+    <View style={st.emptySlot}>
+      <Text style={st.emptyIcon}>📌</Text>
+    </View>
+  )}
+
+
+
+          {img?.imageurl ? (
+            <Image
+              source={{ uri: img.imageurl }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="contain"
+              onLoad={() => setLoaded(true)}
+              onError={() => setLoaded(true)}
+            />
+          ) : (
+            <View style={st.emptySlot}>
+              <Text style={st.emptyIcon}>📌</Text>
+            </View>
+          )}
+        </Animated.View>
 
         {img?.imageurl && <SlotLoader visible={!loaded} />}
       </View>
@@ -442,6 +357,7 @@ function ImageCell({ img, pinColor, slotIndex }: {
     </View>
   );
 }
+
 // ─── SlotSlideshow ────────────────────────────────────────────────────────────
 function SlotSlideshow({ images, slotIndex }: {
   images: ImageObject[];
@@ -714,7 +630,7 @@ const st = StyleSheet.create({
   root:        { flex: 1, backgroundColor: "#2A3462" },
   cellWrapper: { flex: 1, position: "relative", minHeight: isMobile ? 60 : 100 },
   floatCard: {
-    flex: 1, backgroundColor: "#2A3462", borderRadius: isMobile ? 4 : 10, overflow: "visible",
+    flex: 1, backgroundColor: "#2A3462", borderRadius: isMobile ? 4 : 10, overflow: "hidden",
     ...Platform.select({
       ios:     { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
       android: { elevation: 2 },
