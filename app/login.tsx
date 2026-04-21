@@ -321,11 +321,11 @@ export default function Login() {
           <Text style={[s.tvSub, { fontFamily: FONTS.regular }]}>Sign in to continue</Text>
 
           {/* D-pad hint */}
-          <View style={s.tvHint}>
+          {/* <View style={s.tvHint}>
             <Text style={[s.tvHintText, { fontFamily: FONTS.regular }]}>
               ▲ ▼  Navigate   •   OK  Select
             </Text>
-          </View>
+          </View> */}
         </View>
 
         {/* ── Right form panel ── */}
