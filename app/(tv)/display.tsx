@@ -13,6 +13,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { getLocation, fetchWeather, WeatherData } from "@/utils/weather";
 import { logoutApi } from "@/services/auth";
 import { deleteTokens, getRefreshToken } from "@/utils/tokenStorage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -248,33 +249,14 @@ function ImageCell({ img, pinColor, slotIndex }: {
 }) {
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null);
   const [natSize,  setNatSize]  = useState<{ w: number; h: number } | null>(null);
-  const [loaded,   setLoaded]   = useState(false);
-
+  const [imgLoaded, setImgLoaded] = useState(false);
   const anim = useMildAnimation(slotIndex);
-  const effectIndex = slotIndex % 3;
-
-
-const getEffectStyle = () => {
-  return {
-    transform: [
-      {
-        scale: anim.interpolate({
-          inputRange: [-1, 1],
-          outputRange: [0.98, 1.04], // 👈 breathing effect
-        }),
-      },
-    ],
-  };
-};
-
-
-
-
 
   useEffect(() => {
     if (!img?.imageurl) return;
     let cancelled = false;
-    setLoaded(false);
+    setImgLoaded(false);
+    setNatSize(null);
     prefetchImage(img.imageurl);
     fetchImageSize(img.imageurl, (w, h) => {
       if (!cancelled) setNatSize({ w, h });
@@ -282,62 +264,32 @@ const getEffectStyle = () => {
     return () => { cancelled = true; };
   }, [img?.imageurl]);
 
-  const pinPos = cellSize && natSize
-    ? computePinPos(cellSize.w, cellSize.h, natSize.w, natSize.h)
-    : cellSize
-      ? { left: cellSize.w / 2 - PIN_WIDTH / 2, top: isMobile ? -4 : -12 }
-      : null;
+  // Pin is ready when ALL three pieces exist
+  const pinReady = imgLoaded && cellSize && natSize;
+
+  const pinPos = pinReady
+    ? computePinPos(cellSize!.w, cellSize!.h, natSize!.w, natSize!.h)
+    : null;
+
+  const glowStyle = {
+    transform: [{ scale: anim.interpolate({ inputRange: [-1, 1], outputRange: [0.98, 1.04] }) }],
+  };
 
   return (
     <View
       style={st.cellWrapper}
-      onLayout={(e) =>
-        setCellSize({
-          w: e.nativeEvent.layout.width,
-          h: e.nativeEvent.layout.height,
-        })
-      }
+      onLayout={(e) => setCellSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
     >
       <View style={st.floatCard}>
-<Animated.View style={[StyleSheet.absoluteFill, getEffectStyle()]}>
-  {img?.imageurl ? (
-    <Animated.Image
-      source={{ uri: img.imageurl }}
-      style={[
-        StyleSheet.absoluteFill,
-        {
-          // 🔥 LIGHT BLUE GLOW ONLY ON IMAGE
-          shadowColor: "#4FC3F7", // light blue
-          shadowOpacity: anim.interpolate({
-            inputRange: [-1, 1],
-            outputRange: [0.2, 0.6],
-          }),
-          shadowRadius: anim.interpolate({
-            inputRange: [-1, 1],
-            outputRange: [6, 18],
-          }),
-        
-        },
-      ]}
-      resizeMode="contain"
-      onLoad={() => setLoaded(true)}
-      onError={() => setLoaded(true)}
-    />
-  ) : (
-    <View style={st.emptySlot}>
-      <Text style={st.emptyIcon}>📌</Text>
-    </View>
-  )}
-
-
-
+        <Animated.View style={[StyleSheet.absoluteFill, glowStyle]}>
           {img?.imageurl ? (
+            // ✅ ONE image only
             <Image
               source={{ uri: img.imageurl }}
               style={StyleSheet.absoluteFill}
               resizeMode="contain"
-              onLoad={() => setLoaded(true)}
-              onError={() => setLoaded(true)}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgLoaded(true)}
             />
           ) : (
             <View style={st.emptySlot}>
@@ -346,10 +298,11 @@ const getEffectStyle = () => {
           )}
         </Animated.View>
 
-        {img?.imageurl && <SlotLoader visible={!loaded} />}
+        {img?.imageurl && <SlotLoader visible={!imgLoaded} />}
       </View>
 
-      {pinPos && loaded && img?.imageurl && (
+      {/* ✅ Pin shows when img + cell + natSize are all ready */}
+      {pinPos && (
         <View pointerEvents="none" style={[st.pinAnchor, pinPos]}>
           <Pin color={pinColor} />
         </View>
@@ -474,15 +427,46 @@ function DateTimeDisplay() {
 // ─── Header ───────────────────────────────────────────────────────────────────
 function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => string; onPress: () => void }) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  useEffect(() => {
-    async function loadWeather() {
+
+  // 🔹 Fetch weather and cache it
+  async function loadWeather() {
+    try {
       const loc = await getLocation();
       if (!loc) return;
+
       const w = await fetchWeather(loc);
-      if (w) setWeather(w);
+
+      if (w) {
+        setWeather(w); // ✅ update UI
+        await AsyncStorage.setItem("lastWeather", JSON.stringify(w)); // ✅ cache
+      }
+    } catch (e) {
+      console.log("Weather fetch failed:", e);
+      // ❌ don't reset weather → keeps old value
     }
-    loadWeather();
+  }
+
+  useEffect(() => {
+    async function init() {
+      try {
+        // 🔹 Load cached weather first
+        const cached = await AsyncStorage.getItem("lastWeather");
+        if (cached) {
+          setWeather(JSON.parse(cached));
+        }
+      } catch (e) {
+        console.log("Cache load failed:", e);
+      }
+
+      // 🔹 Then fetch fresh data
+      loadWeather();
+    }
+
+    init();
+
+    // 🔹 Auto refresh every 10 min
     const interval = setInterval(loadWeather, 10 * 60 * 1000);
+
     return () => clearInterval(interval);
   }, []);
 
