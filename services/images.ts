@@ -1,29 +1,32 @@
 // services/images.ts
 import api from "./api";
 
-// ✅ Matches ACTUAL API response: { imageId, imageName, imageUrl, createdAt }
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface ImageApi {
   imageId: number;
   imageName: string;
   imageUrl: string;
+  mimeType?: string;
   createdAt?: string;
 }
 
-// Clean frontend model
 export interface ImageItem {
   id: number;
   imageName: string;
   imageUrl: string;
+  mimeType?: string;
   createdAt?: string;
 }
 
-// ── Map API → Frontend ────────────────────────────────────────────────────────
-const mapImage = (img: ImageApi): ImageItem => ({
-  id: img.imageId,
-  imageName: img.imageName,
-  imageUrl: img.imageUrl,
-  createdAt: img.createdAt,
-});
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const normalizeItems = (items: ImageApi[]): ImageItem[] =>
+  items.map((img) => ({
+    id: img.imageId,
+    imageName: img.imageName,
+    imageUrl: img.imageUrl,
+    mimeType: img.mimeType,
+    createdAt: img.createdAt,
+  }));
 
 // ── Upload Image ──────────────────────────────────────────────────────────────
 export const uploadImage = async (
@@ -50,13 +53,37 @@ export const uploadImage = async (
     headers: { "Content-Type": "multipart/form-data" },
   });
 
-  return mapImage(res.data);
+  return normalizeItems([res.data])[0];
 };
 
-// ── Get All Images ────────────────────────────────────────────────────────────
+// ── Get All Images (paginated API → full list) ────────────────────────────────
 export const getImages = async (): Promise<ImageItem[]> => {
-  const res = await api.get<ImageApi[]>("/images");
-  return res.data.map(mapImage);
+  // Step 1: Fetch first page to get total count
+  const firstRes = await api.get<{
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    items: ImageApi[];
+  }>("/images", { params: { page: 1, pageSize: 10 } });
+
+  const { totalPages, items: firstItems } = firstRes.data;
+
+  if (totalPages <= 1) return normalizeItems(firstItems);
+
+  // Step 2: Fetch remaining pages in parallel
+  const requests = Array.from({ length: totalPages - 1 }, (_, i) =>
+    api.get("/images", { params: { page: i + 2, pageSize: 10 } })
+  );
+
+  const responses = await Promise.all(requests);
+
+  const allItems: ImageApi[] = [
+    ...firstItems,
+    ...responses.flatMap((r) => r.data.items as ImageApi[]),
+  ];
+
+  return normalizeItems(allItems);
 };
 
 // ── Get Image File URL by ID ──────────────────────────────────────────────────

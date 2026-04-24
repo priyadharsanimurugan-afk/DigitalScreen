@@ -17,12 +17,14 @@ export const useContent = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [lutData, setLutData] = useState<ContentLUT>({
-    imageList: [],
-    screenLayouts: [],
-    deviceList: [],
-    imageUrl: "",
-  });
+const [lutData, setLutData] = useState<ContentLUT>({
+  imageList: [],
+  screenLayouts: [],
+  deviceList: [],
+  imageUrl: "",
+  pagination: { page: 1, pageSize: 10, totalCount: 0, totalPages: 1 }, // ← safe default
+});
+ 
 
   const [deviceDisplay, setDeviceDisplay] = useState<DeviceDisplay | null>(null);
   const [liveDisplays, setLiveDisplays] = useState<LiveDisplay[]>([]);
@@ -54,26 +56,37 @@ export const useContent = () => {
   };
 
   // Fetch LUT Data
-  const fetchLUTData = async () => {
-    try {
-      setLoading(true);
-      const data = await getContentLUT();
-      setLutData({
-        imageList: data.imageList || [],
-        screenLayouts: data.screenLayouts || [],
-        deviceList: data.deviceList || [],
-        imageUrl: data.imageUrl || "",
-      });
-      return data;
-    } catch (err) {
-      console.error('Error fetching LUT data:', err);
-      setError(parseError(err));
-      clearMessages();
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchLUTData = async () => {
+  try {
+    setLoading(true);
+
+    const data = await getContentLUT(1, 10);
+
+    setLutData({
+      imageList: data.imageList || [],
+      screenLayouts: data.screenLayouts || [],
+      deviceList: data.deviceList || [],
+      imageUrl: data.imageUrl || "",
+      pagination:
+        data.pagination ?? {
+          page: 1,
+          pageSize: 10,
+          totalCount: 0,
+          totalPages: 1,
+        },
+    });
+
+    return data;
+  } catch (err) {
+    console.error("Error fetching LUT data:", err);
+    setError(parseError(err));
+    clearMessages();
+    return null;
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Fetch Live Display
   const fetchLiveDisplay = async () => {

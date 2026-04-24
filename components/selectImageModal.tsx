@@ -1,5 +1,5 @@
 // components/selectImageModal.tsx
-import React from "react";
+import React, { useRef } from "react";
 import {
   View,
   Text,
@@ -9,17 +9,29 @@ import {
   FlatList,
   StyleSheet,
   useWindowDimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/app/dashboard.styles";
 
+interface ImageOption {
+  imageId: number;
+  imageName: string;
+  imageurl?: string;
+}
+
 interface Props {
   visible: boolean;
   onClose: () => void;
-  options: { imageId: number; imageName: string; imageurl?: string }[];
+  options: ImageOption[];
   selected: number[];
   onToggle: (id: number) => void;
   maxSelect: number;
+  // ─── Pagination props ───────────────────────────────────────────────
+  currentPage?: number;        // 1-based current page
+  totalPages?: number;         // total pages from API
+  onPageChange?: (page: number) => void; // called when user navigates
+  loadingMore?: boolean;       // shows spinner while fetching
 }
 
 export const ImageSelectModal = ({
@@ -29,13 +41,19 @@ export const ImageSelectModal = ({
   selected,
   onToggle,
   maxSelect,
+  currentPage = 1,
+  totalPages = 1,
+  onPageChange,
+  loadingMore = false,
 }: Props) => {
   const { width, height } = useWindowDimensions();
   const modalW = Math.min(width - 32, 640);
   // 3 columns with 16px padding each side and 8px gaps
   const colSize = (modalW - 32 - 16) / 3;
 
-  const renderItem = ({ item }: any) => {
+  const hasPagination = totalPages > 1 && !!onPageChange;
+
+  const renderItem = ({ item }: { item: ImageOption }) => {
     const isSelected = selected.includes(item.imageId);
     const orderIndex = selected.indexOf(item.imageId);
     const atMax = !isSelected && selected.length >= maxSelect;
@@ -88,8 +106,17 @@ export const ImageSelectModal = ({
     );
   };
 
+  // ─── Footer: loading overlay for grid ────────────────────────────────
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={s.loadingOverlay}>
+        <ActivityIndicator size="small" color={C.primary} />
+      </View>
+    );
+  };
+
   return (
-    // transparent + justifyContent center = centered modal, NOT bottom sheet
     <Modal
       visible={visible}
       transparent
@@ -98,30 +125,18 @@ export const ImageSelectModal = ({
     >
       <View style={s.overlay}>
         <View style={[s.modalBox, { width: modalW, maxHeight: height * 0.85 }]}>
-          {/* Header */}
+
+          {/* ── Header ─────────────────────────────────────────────── */}
           <View style={s.header}>
             <View>
-              <Text style={s.headerTitle}>Select Imagess</Text>
+              <Text style={s.headerTitle}>Select Images</Text>
               <Text style={s.headerSub}>
                 {selected.length}/{maxSelect} selected
               </Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View
-                style={{
-                  backgroundColor: C.primaryGhost,
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: 99,
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "Poppins_600SemiBold",
-                    fontSize: 12,
-                    color: C.primary,
-                  }}
-                >
+              <View style={{ backgroundColor: C.primaryGhost, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 }}>
+                <Text style={{ fontFamily: "Poppins_600SemiBold", fontSize: 12, color: C.primary }}>
                   {selected.length}/{maxSelect}
                 </Text>
               </View>
@@ -131,7 +146,7 @@ export const ImageSelectModal = ({
             </View>
           </View>
 
-          {/* Grid */}
+          {/* ── Image grid ─────────────────────────────────────────── */}
           <FlatList
             data={options}
             keyExtractor={(item) => String(item.imageId)}
@@ -140,40 +155,119 @@ export const ImageSelectModal = ({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ padding: 16, gap: 8 }}
             columnWrapperStyle={{ gap: 8, justifyContent: "flex-start" }}
+            ListFooterComponent={renderFooter}
           />
 
-          {/* Footer */}
+          {/* ── Pagination bar ─────────────────────────────────────── */}
+          {hasPagination && (
+            <View style={s.paginationBar}>
+              {/* Prev */}
+              <TouchableOpacity
+                onPress={() => onPageChange!(currentPage - 1)}
+                disabled={currentPage <= 1 || loadingMore}
+                style={[
+                  s.pageBtn,
+                  (currentPage <= 1 || loadingMore) && s.pageBtnDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="chevron-back"
+                  size={16}
+                  color={currentPage <= 1 || loadingMore ? "#CBD5E1" : C.primary}
+                />
+              </TouchableOpacity>
+
+              {/* Page numbers */}
+              <View style={s.pageNumbers}>
+                {buildPageNumbers(currentPage, totalPages).map((p, i) =>
+                  p === "…" ? (
+                    <Text key={`ellipsis-${i}`} style={s.ellipsis}>…</Text>
+                  ) : (
+                    <TouchableOpacity
+                      key={p}
+                      onPress={() => onPageChange!(p as number)}
+                      disabled={loadingMore}
+                      style={[
+                        s.pageNumBtn,
+                        currentPage === p && s.pageNumBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          s.pageNumText,
+                          currentPage === p && s.pageNumTextActive,
+                        ]}
+                      >
+                        {p}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
+              </View>
+
+              {/* Next */}
+              <TouchableOpacity
+                onPress={() => onPageChange!(currentPage + 1)}
+                disabled={currentPage >= totalPages || loadingMore}
+                style={[
+                  s.pageBtn,
+                  (currentPage >= totalPages || loadingMore) && s.pageBtnDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={
+                    currentPage >= totalPages || loadingMore
+                      ? "#CBD5E1"
+                      : C.primary
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── Footer buttons ─────────────────────────────────────── */}
           <View style={s.footer}>
             <TouchableOpacity onPress={onClose} style={s.cancelBtn}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontFamily: "Poppins_600SemiBold",
-                  color: "#6B7280",
-                }}
-              >
+              <Text style={{ fontSize: 14, fontFamily: "Poppins_600SemiBold", color: "#6B7280" }}>
                 Cancel
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={onClose}
-              style={[
-                s.doneBtn,
-                { opacity: selected.length === 0 ? 0.5 : 1 },
-              ]}
+              style={[s.doneBtn, { opacity: selected.length === 0 ? 0.5 : 1 }]}
             >
               <Ionicons name="checkmark-circle" size={18} color="#fff" />
               <Text style={s.doneText}>Done ({selected.length})</Text>
             </TouchableOpacity>
           </View>
+
         </View>
       </View>
     </Modal>
   );
 };
 
+// ─── Helper: build page-number list with ellipsis ──────────────────────────
+function buildPageNumbers(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+
+  const pages: (number | "…")[] = [1];
+
+  if (current > 3) pages.push("…");
+
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  if (current < total - 2) pages.push("…");
+
+  pages.push(total);
+  return pages;
+}
+
 const s = StyleSheet.create({
-  // centered overlay — NOT bottom-aligned
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -256,6 +350,70 @@ const s = StyleSheet.create({
     color: "#334155",
     fontWeight: "500",
   },
+  loadingOverlay: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  // ── Pagination ──────────────────────────────────────────────────────
+  paginationBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  pageBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  pageBtnDisabled: {
+    borderColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
+  },
+  pageNumbers: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  pageNumBtn: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    backgroundColor: "#fff",
+  },
+  pageNumBtnActive: {
+    backgroundColor: C.primary,
+    borderColor: C.primary,
+  },
+  pageNumText: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 12,
+    color: "#64748B",
+  },
+  pageNumTextActive: {
+    color: "#fff",
+  },
+  ellipsis: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 13,
+    color: "#94A3B8",
+    paddingHorizontal: 2,
+  },
+  // ── Footer buttons ─────────────────────────────────────────────────
   footer: {
     flexDirection: "row",
     gap: 10,

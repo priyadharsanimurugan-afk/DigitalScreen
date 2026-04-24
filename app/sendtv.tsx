@@ -19,6 +19,7 @@ import { getLayoutConfig } from "@/constants/layout";
 import { StepBadge, SummaryRow, TVNoticeBoard } from "@/components/dashboardAtoms";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "@/constants/toastConfig"; 
+import { getContentLUT } from "@/services/content";
 
 // ─── DROPDOWN ────────────────────────────────────────────────────────────────
 const Dropdown = ({
@@ -173,21 +174,46 @@ export default function SendToTVScreen() {
     <ResponsiveLayout>
       <View style={styles.container}>
         {/* Layout Arrange Modal */}
-        <LayoutArrangeModal
-          visible={layoutModalVisible}
-          onClose={() => setLayoutModalVisible(false)}
-          onConfirm={(layout: string, slotsArray: number[][]) => {
-            setSelectedLayout(layout);
-            setSlotAssignment(slotsArray);
-            // Extract all selected image IDs from the slots array with proper typing
-            const allImageIds = slotsArray.flat().filter((id): id is number => id !== null && id !== undefined);
-            setSelectedImageIds([...new Set(allImageIds)]);
-            setLayoutModalVisible(false);
-          }}
-          imageList={lutData.imageList}
-          selectedImageIds={selectedImageIds}
-          layouts={lutData.screenLayouts || []}
-        />
+<LayoutArrangeModal
+  visible={layoutModalVisible}
+  onClose={() => setLayoutModalVisible(false)}
+  onConfirm={(layout: string, slotsArray: number[][]) => {
+    setSelectedLayout(layout);
+    setSlotAssignment(slotsArray);
+    const allImageIds = slotsArray
+      .flat()
+      .filter((id): id is number => id !== null && id !== undefined);
+    setSelectedImageIds([...new Set(allImageIds)]);
+    setLayoutModalVisible(false);
+  }}
+  imageList={lutData.imageList}
+  selectedImageIds={selectedImageIds}
+  layouts={lutData.screenLayouts || []}
+  initialLayout={selectedLayout}
+  initialSlotAssignment={slotAssignment}
+  // ── Safe pagination — never crashes even if API omits pagination ──
+  imagePagination={
+    lutData.pagination
+      ? {
+          page: lutData.pagination.page,
+          totalPages: lutData.pagination.totalPages,
+          totalCount: lutData.pagination.totalCount,
+        }
+      : undefined   // layoutArrangeModal handles undefined gracefully
+  }
+  onFetchImages={async (page) => {
+    const data = await getContentLUT(page, 10);
+    return {
+      imageList: data.imageList,
+      pagination: data.pagination ?? {
+        page,
+        pageSize: 10,
+        totalCount: 0,
+        totalPages: 1,
+      },
+    };
+  }}
+/>
 
         <ScrollView
           style={styles.scroll}

@@ -13,7 +13,9 @@ export interface ImageItem {
   imageId: number;
   imageName: string;
   imageurl?: string;
+  mimeType?: string;
 }
+
 export interface SlotItem {
   slotIndex: number;
   imageIds: number[];
@@ -24,28 +26,31 @@ export interface SendContentRequest {
   description: string;
   screenLayout: string;
   deviceId: string | any;
-  slots: SlotItem[];  // ← replaces imageIds: number[]
+  slots: SlotItem[];
 }
+
 export interface DeviceLUTItem {
   deviceId: string;
   deviceName: string;
   displayName: string;
 }
 
-export interface ContentLUT {
-  imageList: ImageItem[];
-  screenLayouts: LayoutConfig[]; 
-  deviceList: DeviceLUTItem[];
-  imageUrl: string;
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
 }
 
-// export interface SendContentRequest {
-//   title: string;
-//   description: string;
-//   imageIds: number[];
-//   screenLayout: string;
-//   deviceId: string;
-// }
+export interface ContentLUT {
+  imageList: ImageItem[];
+  screenLayouts: LayoutConfig[];
+  deviceList: DeviceLUTItem[];
+  imageUrl: string;
+  pagination?: PaginationMeta;   // ← optional (API may not always return it)
+}
+ 
+ 
 
 export interface ApiResponse {
   success: boolean;
@@ -82,10 +87,17 @@ export interface DeviceDisplay {
   }[];
 }
 
-// ─── API CALLS ─────────────────────────────────────────────────────────────────
+// ─── API CALLS ────────────────────────────────────────────────────────────────
 
-export const getContentLUT = async (): Promise<ContentLUT> => {
-  const res = await api.get<ContentLUT>("/content/lut");
+/**
+ * Fetch LUT data. Pass `page` to load a specific image page (default 1).
+ * screenLayouts and deviceList are only returned on page 1 by the API,
+ * so callers should preserve them from the first fetch.
+ */
+export const getContentLUT = async (page = 1, pageSize = 10): Promise<ContentLUT> => {
+  const res = await api.get<ContentLUT>("/content/lut", {
+    params: { page, pageSize },
+  });
   return res.data;
 };
 
@@ -94,7 +106,7 @@ export const sendContent = async (data: SendContentRequest): Promise<ApiResponse
   return {
     success: true,
     message: response.data?.message || "Content sent successfully",
-    contentId: response.data?.contentId
+    contentId: response.data?.contentId,
   };
 };
 
@@ -108,10 +120,13 @@ export const getLiveDisplay = async (): Promise<LiveDisplay[]> => {
   return res.data;
 };
 
-export const stopContent = async (deviceId: string, contentId: number): Promise<ApiResponse> => {
+export const stopContent = async (
+  deviceId: string,
+  contentId: number
+): Promise<ApiResponse> => {
   const res = await api.post("/content/stop", { deviceId, contentId });
   return {
     success: true,
-    message: res.data?.message || "Content stopped successfully"
+    message: res.data?.message || "Content stopped successfully",
   };
 };

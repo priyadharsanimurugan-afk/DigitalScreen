@@ -15,6 +15,7 @@ import ResponsiveLayout from "@/components/responsiveLayout";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useContent } from "@/hooks/useContent";
 import LiveContentEditModal from "@/components/liveContentEdit";
+import { getContentLUT } from "@/services/content";
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const C = {
@@ -413,15 +414,33 @@ export default function DashboardScreen() {
       <View style={{ flex: 1, backgroundColor: C.bg }}>
 
         {/* ── Modals ─────────────────────────────────────────────────────── */}
-        <LiveContentEditModal
-          visible={editVisible}
-          onClose={() => setEditVisible(false)}
-          content={editContent}
-          imageList={lutData.imageList}
-          layouts={lutData.screenLayouts || []}
-          deviceId={editContent?.deviceId}
-          onSend={handleSendEdit}
-        />
+      <LiveContentEditModal
+  visible={editVisible}
+  onClose={() => setEditVisible(false)}
+  content={editContent}
+  imageList={lutData.imageList}
+  layouts={lutData.screenLayouts || []}
+  deviceId={editContent?.deviceId}
+  onSend={handleSendEdit}
+  // Add these two props 👇
+  onFetchImages={async (page) => {
+    const data = await getContentLUT(page, 10);
+    return {
+      imageList: data.imageList,
+      pagination: data.pagination ?? {
+        page,
+        pageSize: 10,
+        totalCount: 0,
+        totalPages: 1,
+      },
+    };
+  }}
+  imagePagination={lutData.pagination ? {
+    page: lutData.pagination.page,
+    totalPages: lutData.pagination.totalPages,
+    totalCount: lutData.pagination.totalCount,
+  } : undefined}
+/>
         <StopModal
           visible={stopVisible}
           onCancel={() => setStopVisible(false)}

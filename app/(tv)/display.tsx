@@ -180,54 +180,7 @@ function useMildAnimation(slotIndex: number) {
   return anim;
 }
 
-// ─── Animation Hooks (mild) ───────────────────────────────────────────────────
-function useSequentialFloat(slotIndex: number) {
-  const floatY = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(slotIndex * 600),
-        Animated.timing(floatY, { toValue: isMobile ? -2 : -3, duration: 10000, useNativeDriver: true }),
-        Animated.timing(floatY, { toValue: isMobile ?  2 :  3, duration: 10000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [slotIndex]);
-  return floatY;
-}
 
-function useSequentialPulse(slotIndex: number) {
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(slotIndex * 600),
-        Animated.timing(pulse, { toValue: 1.005, duration: 8000, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.995, duration: 8000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [slotIndex]);
-  return pulse;
-}
-
-function useSequentialRotate(slotIndex: number) {
-  const rotate = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(slotIndex * 600),
-        Animated.timing(rotate, { toValue:  1, duration: 14000, useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: -1, duration: 14000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [slotIndex]);
-  return rotate;
-}
 
 // ─── Small Pin ────────────────────────────────────────────────────────────────
 function Pin({ color }: { color: string }) {
@@ -647,7 +600,15 @@ const st = StyleSheet.create({
   pinHead:    { borderWidth: 1.5, borderColor: "rgba(255,255,255,0.3)" },
   pinNeedle:  { width: 1.5, backgroundColor: "#888", marginTop: -1 },
   pinGround:  { height: 2, borderRadius: 2, marginTop: 1, backgroundColor: "rgba(0,0,0,0.1)" },
-
+  // ── Page Curl ──────────────────────────────────────────────────────────────
+pageCurlWrap: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  width: isMobile ? 20 : 40,
+  height: isMobile ? 20 : 40,
+  zIndex: 30,
+},
   // ── Empty / counter ──────────────────────────────────────────────────────────
   emptySlot:       { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyIcon:       { fontSize: isMobile ? 16 : 28, opacity: 0.3 },
