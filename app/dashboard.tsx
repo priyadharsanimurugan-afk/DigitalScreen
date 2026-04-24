@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, Image, useWindowDimensions,
+  Linking,
+  Platform,
 } from "react-native";
 import {
   useFonts, Poppins_400Regular, Poppins_500Medium,
@@ -15,6 +17,7 @@ import ResponsiveLayout from "@/components/responsiveLayout";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useContent } from "@/hooks/useContent";
 import LiveContentEditModal from "@/components/liveContentEdit";
+
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const C = {
@@ -347,6 +350,67 @@ export default function DashboardScreen() {
   const [editVisible,   setEditVisible]   = useState(false);
   const [editContent,   setEditContent]   = useState<any>(null);
   const [lightboxImg,   setLightboxImg]   = useState<any>(null);
+  const [pdfPreview, setPdfPreview] = useState<{
+  visible: boolean;
+  url: string | null;
+  name: string;
+}>({
+  visible: false,
+  url: null,
+  name: "",
+});
+
+const PdfPreviewModal = ({ visible, url, name, onClose }: any) => {
+  if (!visible || !url) return null;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.9)",
+      }}>
+        
+        {/* Header */}
+        <View style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: 12,
+        }}>
+          <Text style={{ color: "#fff", fontSize: 14 }}>{name}</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* WEB → iframe */}
+        {Platform.OS === "web" ? (
+          <View style={{ flex: 1 }}>
+            {/* @ts-ignore */}
+            <iframe
+              src={url}
+              style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+            />
+          </View>
+        ) : (
+          // MOBILE fallback
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => Linking.openURL(url)}
+              style={{
+                backgroundColor: "#A16207",
+                padding: 12,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#fff" }}>Open PDF</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+};
 
   const isMobile  = sw < BP.mobile;
   const isTablet  = sw >= BP.mobile && sw < BP.desktop;
@@ -627,8 +691,22 @@ export default function DashboardScreen() {
                     return (
                       <TouchableOpacity
                         key={img.imageId}
-                        onPress={() => setLightboxImg(img)}
-                        activeOpacity={0.82}
+onPress={() => {
+  if (img.mimeType === "application/pdf") {
+    if (Platform.OS === "web") {
+      setPdfPreview({
+        visible: true,
+        url: img.imageurl,
+        name: img.imageName,
+      });
+    } else {
+      Linking.openURL(img.imageurl);
+    }
+  } else {
+    setLightboxImg(img);
+  }
+}}
+                   activeOpacity={0.82}
                         style={{
                           width: colPct as any,
                           flexGrow: 1,
@@ -640,13 +718,40 @@ export default function DashboardScreen() {
                           borderColor: C.border,
                         }}>
                         {/* Thumb — consistent 4:3 ratio */}
-                        <View style={{ width: "100%", aspectRatio: 4 / 3 }}>
-                          <Image
-                            source={{ uri: img.imageurl }}
-                            style={{ width: "100%", height: "100%" }}
-                            resizeMode="cover"
-                          />
-                        </View>
+<View style={{ width: "100%", aspectRatio: 4 / 3 }}>
+  {img.mimeType === "application/pdf" ? (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#FEF3C7",
+        gap: 6,
+      }}
+    >
+      <Ionicons name="document-text-outline" size={26} color="#A16207" />
+      <Text
+        style={{
+          fontSize: 9,
+          color: "#A16207",
+          fontFamily: "Poppins_500Medium",
+        }}
+      >
+        Tap to Preview
+      </Text>
+    </View>
+  ) : (
+    <Image
+      source={{ uri: img.imageurl }}
+      style={{ width: "100%", height: "100%" }}
+      resizeMode="cover"
+    />
+  )}
+</View>
+
+
+
+
                         {/* Label */}
                         <View style={{ padding: isMobile ? 6 : 8, gap: 2 }}>
                           <Text
@@ -667,6 +772,14 @@ export default function DashboardScreen() {
 
             <View style={{ height: isMobile ? 24 : 10 }} />
           </View>
+
+          <PdfPreviewModal
+  visible={pdfPreview.visible}
+  url={pdfPreview.url}
+  name={pdfPreview.name}
+  onClose={() => setPdfPreview({ visible: false, url: null, name: "" })}
+/>
+
         </ScrollView>
       </View>
     </ResponsiveLayout>

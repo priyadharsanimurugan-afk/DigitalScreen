@@ -23,6 +23,7 @@ export interface LatestLiveContent {
 }
 
 export interface RecentImage {
+  mimeType: string;
   imageId: number;
   imageName: string;
   imageurl: string;

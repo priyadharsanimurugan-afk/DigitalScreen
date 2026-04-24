@@ -14,6 +14,8 @@ import { getLocation, fetchWeather, WeatherData } from "@/utils/weather";
 import { logoutApi } from "@/services/auth";
 import { deleteTokens, getRefreshToken } from "@/utils/tokenStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { WebView } from "react-native-webview";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -39,7 +41,12 @@ const DISPLAY_TIME = 12000;
 const FADE_TIME    =  1200;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ImageObject = { imageId: number; imageurl: string; sortOrder: number };
+type ImageObject = {
+  imageId: number;
+  imageurl: string;
+  sortOrder: number;
+  mimeType?: string;
+};
 type Slot        = { slotIndex: number; images: ImageObject[] };
 type ScreenLayoutObject = { label: string; value: string; rows: number; cols: number; slots: number };
 type DeviceDisplay = {
@@ -70,6 +77,11 @@ const getLayoutDims = (l: string | ScreenLayoutObject): { rows: number; cols: nu
 
 const isFeatureLayout = (v: string): v is FeatureLayout => FEATURE_LAYOUTS.includes(v as FeatureLayout);
 
+const isPdfFile = (img: ImageObject): boolean =>
+  img.mimeType === "application/pdf" ||
+  img.imageurl?.toLowerCase().endsWith(".pdf") ||
+  false;
+
 const normalizeSlots = (rawSlots: Slot[] | undefined, count: number) =>
   Array.from({ length: count }, (_, i) => ({
     slotIndex: i,
@@ -80,15 +92,20 @@ const normalizeSlots = (rawSlots: Slot[] | undefined, count: number) =>
 
 // ─── Image prefetch cache ─────────────────────────────────────────────────────
 const prefetchedUrls = new Set<string>();
-function prefetchImage(url: string) {
-  if (!url || prefetchedUrls.has(url)) return;
+function prefetchImage(url: string, isPdf: boolean = false) {
+  if (!url || prefetchedUrls.has(url) || isPdf) return;
   prefetchedUrls.add(url);
   Image.prefetch(url).catch(() => {});
 }
 
 // ─── Image size cache ─────────────────────────────────────────────────────────
 const imageSizeCache: Record<string, { w: number; h: number }> = {};
-function fetchImageSize(url: string, cb: (w: number, h: number) => void) {
+function fetchImageSize(url: string, cb: (w: number, h: number) => void, isPdf: boolean = false) {
+  if (isPdf) {
+    // Use landscape ratio for PDFs so pin sits at top-center of the card
+    cb(1600, 900);
+    return;
+  }
   if (imageSizeCache[url]) return cb(imageSizeCache[url].w, imageSizeCache[url].h);
   Image.getSize(url, (w, h) => { imageSizeCache[url] = { w, h }; cb(w, h); }, () => cb(100, 100));
 }
@@ -100,38 +117,134 @@ function computePinPos(cW: number, cH: number, nW: number, nH: number) {
   return { left: (cW - rW) / 2 + rW / 2 - PIN_WIDTH / 2, top: (cH - rH) / 2 - (isMobile ? 4 : 12) };
 }
 
-// ─── Slot Loader Overlay ──────────────────────────────────────────────────────
-// Pulsing shimmer card + spinner shown while image is downloading.
-// Fades out smoothly when the image fires onLoad.
-function SlotLoader({ visible }: { visible: boolean }) {
-  const opacity    = useRef(new Animated.Value(1)).current;
-  const shimmer    = useRef(new Animated.Value(0.45)).current;
-  const prevRef    = useRef(true);
-  const shimmerRef = useRef<Animated.CompositeAnimation | null>(null);
+// ─── PDF Viewer ───────────────────────────────────────────────────────────────
+// Web:    srcdoc iframe wrapper — forces fit-page, kills all scrollbars + controls
+// Mobile: WebView with scrollEnabled=false + injected CSS to disable scroll/overflow
+function PdfViewer({ url }: { url: string }) {
+  const [loading, setLoading] = useState(true);
 
-  // Shimmer loop
-  useEffect(() => {
-    shimmerRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, { toValue: 0.75, duration: 850, useNativeDriver: true }),
-        Animated.timing(shimmer, { toValue: 0.45, duration: 850, useNativeDriver: true }),
-      ])
+  if (Platform.OS === 'web') {
+    // srcdoc lets us inject CSS that suppresses all overflow and PDF chrome
+    const srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{
+    width:100%;height:100%;
+    overflow:hidden;
+    background:#2A3462;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  embed{
+    display:block;
+    width:100%;
+    height:100%;
+    border:none;
+    background:#2A3462;
+    pointer-events:none;
+  }
+  ::-webkit-scrollbar{display:none;}
+</style>
+</head>
+<body>
+  <embed
+    src="${url}#toolbar=0&navpanes=0&scrollbar=0&statusbar=0&messages=0&view=Fit&zoom=page-fit&pagemode=none"
+    type="application/pdf"
+    width="100%"
+    height="100%"
+  />
+</body>
+</html>`;
+
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
+        {loading && (
+          <View style={[StyleSheet.absoluteFill, st.loaderOverlay, { backgroundColor: C.bg }]}>
+            <View style={st.loaderSpinnerWrap}>
+              <ActivityIndicator size={isMobile ? "small" : "large"} color="rgba(255,255,255,0.75)" />
+              <Text style={st.loaderText}>Loading PDF…</Text>
+            </View>
+          </View>
+        )}
+        {/* @ts-ignore — iframe is valid on web */}
+        <iframe
+          srcDoc={srcdoc}
+          style={{
+            width: "100%",
+            height: "100%",
+            border: "none",
+            display: "block",
+            backgroundColor: "#2A3462",
+          }}
+          scrolling="no"
+          onLoad={() => setLoading(false)}
+        />
+        {/* Transparent overlay prevents user interaction / scroll */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none" />
+ 
+      </View>
     );
-    shimmerRef.current.start();
-    return () => shimmerRef.current?.stop();
-  }, []);
+  }
 
-  // Fade out when image is ready
+  // ── Mobile WebView ────────────────────────────────────────────────────────
+  const embedUrl = `${url}#toolbar=0&navpanes=0&scrollbar=0&view=Fit&zoom=page-fit`;
+  const injectedJS = `
+    (function(){
+      document.documentElement.style.cssText = 'overflow:hidden!important;margin:0;padding:0;background:#2A3462;';
+      document.body.style.cssText = 'overflow:hidden!important;margin:0;padding:0;background:#2A3462;';
+      document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
+    })();
+    true;
+  `;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      {loading && (
+        <View style={[StyleSheet.absoluteFill, st.loaderOverlay, { backgroundColor: C.bg }]}>
+          <View style={st.loaderSpinnerWrap}>
+            <ActivityIndicator size="large" color="rgba(255,255,255,0.75)" />
+            <Text style={st.loaderText}>Loading PDF…</Text>
+          </View>
+        </View>
+      )}
+      <WebView
+        source={{ uri: embedUrl }}
+        style={{ flex: 1, backgroundColor: C.bg }}
+        onLoadEnd={() => setLoading(false)}
+        onError={() => setLoading(false)}
+        originWhitelist={["*"]}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        scrollEnabled={false}
+        bounces={false}
+        injectedJavaScript={injectedJS}
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
+      />
+      <View style={st.pdfBadge}>
+        <Ionicons name="document-text" size={isMobile ? 10 : 14} color="#fff" />
+        <Text style={st.pdfBadgeText}>PDF</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Slot Loader Overlay ──────────────────────────────────────────────────────
+function SlotLoader({ visible }: { visible: boolean }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const prevRef = useRef(true);
+
   useEffect(() => {
     if (prevRef.current === visible) return;
     prevRef.current = visible;
     Animated.timing(opacity, {
       toValue: visible ? 1 : 0,
-      duration: 350,
+      duration: 300,
       useNativeDriver: true,
-    }).start(() => {
-      if (!visible) shimmerRef.current?.stop();
-    });
+    }).start();
   }, [visible]);
 
   return (
@@ -139,94 +252,13 @@ function SlotLoader({ visible }: { visible: boolean }) {
       pointerEvents="none"
       style={[StyleSheet.absoluteFill, st.loaderOverlay, { opacity }]}
     >
-      {/* shimmer card */}
-      <Animated.View
-        style={[StyleSheet.absoluteFill, { borderRadius: isMobile ? 4 : 10, backgroundColor: C.loaderBg, opacity: shimmer }]}
-      />
-      {/* spinner + label */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: C.bg }]} />
       <View style={st.loaderSpinnerWrap}>
-        <ActivityIndicator
-          size={isMobile ? "small" : "large"}
-          color="rgba(255,255,255,0.75)"
-        />
+        <ActivityIndicator size={isMobile ? "small" : "large"} color="rgba(255,255,255,0.75)" />
         <Text style={st.loaderText}>Loading…</Text>
       </View>
     </Animated.View>
   );
-}
-function useMildAnimation(slotIndex: number) {
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 10000 + slotIndex * 300, // slight variation per slot
-          useNativeDriver: true,
-        }),
-        Animated.timing(anim, {
-          toValue: -1,
-          duration: 10000 + slotIndex * 300,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    loop.start();
-    return () => loop.stop();
-  }, []); // 🚨 no dependency → never resets
-
-  return anim;
-}
-
-// ─── Animation Hooks (mild) ───────────────────────────────────────────────────
-function useSequentialFloat(slotIndex: number) {
-  const floatY = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(slotIndex * 600),
-        Animated.timing(floatY, { toValue: isMobile ? -2 : -3, duration: 10000, useNativeDriver: true }),
-        Animated.timing(floatY, { toValue: isMobile ?  2 :  3, duration: 10000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [slotIndex]);
-  return floatY;
-}
-
-function useSequentialPulse(slotIndex: number) {
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(slotIndex * 600),
-        Animated.timing(pulse, { toValue: 1.005, duration: 8000, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.995, duration: 8000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [slotIndex]);
-  return pulse;
-}
-
-function useSequentialRotate(slotIndex: number) {
-  const rotate = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(slotIndex * 600),
-        Animated.timing(rotate, { toValue:  1, duration: 14000, useNativeDriver: true }),
-        Animated.timing(rotate, { toValue: -1, duration: 14000, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [slotIndex]);
-  return rotate;
 }
 
 // ─── Small Pin ────────────────────────────────────────────────────────────────
@@ -242,38 +274,36 @@ function Pin({ color }: { color: string }) {
 }
 
 // ─── ImageCell ────────────────────────────────────────────────────────────────
+// No animation at all — completely static display
 function ImageCell({ img, pinColor, slotIndex }: {
   img: ImageObject | null;
   pinColor: string;
   slotIndex: number;
 }) {
-  const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null);
-  const [natSize,  setNatSize]  = useState<{ w: number; h: number } | null>(null);
+  const [cellSize,  setCellSize]  = useState<{ w: number; h: number } | null>(null);
+  const [natSize,   setNatSize]   = useState<{ w: number; h: number } | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
-  const anim = useMildAnimation(slotIndex);
+
+  const isPdf = img ? isPdfFile(img) : false;
 
   useEffect(() => {
     if (!img?.imageurl) return;
     let cancelled = false;
     setImgLoaded(false);
     setNatSize(null);
-    prefetchImage(img.imageurl);
+    prefetchImage(img.imageurl, isPdf);
     fetchImageSize(img.imageurl, (w, h) => {
       if (!cancelled) setNatSize({ w, h });
-    });
+    }, isPdf);
+    // PDFs are immediately "loaded" — so the pin can render without waiting
+    if (isPdf) setImgLoaded(true);
     return () => { cancelled = true; };
-  }, [img?.imageurl]);
+  }, [img?.imageurl, isPdf]);
 
-  // Pin is ready when ALL three pieces exist
   const pinReady = imgLoaded && cellSize && natSize;
-
-  const pinPos = pinReady
+  const pinPos   = pinReady
     ? computePinPos(cellSize!.w, cellSize!.h, natSize!.w, natSize!.h)
     : null;
-
-  const glowStyle = {
-    transform: [{ scale: anim.interpolate({ inputRange: [-1, 1], outputRange: [0.98, 1.04] }) }],
-  };
 
   return (
     <View
@@ -281,9 +311,10 @@ function ImageCell({ img, pinColor, slotIndex }: {
       onLayout={(e) => setCellSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
     >
       <View style={st.floatCard}>
-        <Animated.View style={[StyleSheet.absoluteFill, glowStyle]}>
-          {img?.imageurl ? (
-            // ✅ ONE image only
+        {img?.imageurl ? (
+          isPdf ? (
+            <PdfViewer url={img.imageurl} />
+          ) : (
             <Image
               source={{ uri: img.imageurl }}
               style={StyleSheet.absoluteFill}
@@ -291,17 +322,17 @@ function ImageCell({ img, pinColor, slotIndex }: {
               onLoad={() => setImgLoaded(true)}
               onError={() => setImgLoaded(true)}
             />
-          ) : (
-            <View style={st.emptySlot}>
-              <Text style={st.emptyIcon}>📌</Text>
-            </View>
-          )}
-        </Animated.View>
-
-        {img?.imageurl && <SlotLoader visible={!imgLoaded} />}
+          )
+        ) : (
+          <View style={st.emptySlot}>
+            <Text style={st.emptyIcon}>📌</Text>
+          </View>
+        )}
+        {/* Loader only for regular images */}
+        {img?.imageurl && !isPdf && <SlotLoader visible={!imgLoaded} />}
       </View>
 
-      {/* ✅ Pin shows when img + cell + natSize are all ready */}
+      {/* Pin for ALL content types including PDFs */}
       {pinPos && (
         <View pointerEvents="none" style={[st.pinAnchor, pinPos]}>
           <Pin color={pinColor} />
@@ -316,35 +347,35 @@ function SlotSlideshow({ images, slotIndex }: {
   images: ImageObject[];
   slotIndex: number;
 }) {
-  const [idx,    setIdx]   = useState(0);
-  const fadeAnim           = useRef(new Animated.Value(1)).current;
-  const idxRef             = useRef(0);
-  const imgsRef            = useRef(images);
+  const [idx,    setIdx] = useState(0);
+  const fadeAnim         = useRef(new Animated.Value(1)).current;
+  const idxRef           = useRef(0);
+  const imgsRef          = useRef(images);
 
   useEffect(() => { imgsRef.current = images; }, [images]);
   useEffect(() => { idxRef.current  = idx;    }, [idx]);
 
-  // Prefetch every image in this slot upfront
   useEffect(() => {
-    images.forEach(img => prefetchImage(img.imageurl));
+    images.forEach(img => prefetchImage(img.imageurl, isPdfFile(img)));
   }, [images]);
 
   useEffect(() => {
     if (images.length <= 1) return;
     const startDelay = slotIndex * 2000;
-    const timeout = setTimeout(() => {
-      const interval = setInterval(() => {
+    const t = setTimeout(() => {
+      const iv = setInterval(() => {
         Animated.timing(fadeAnim, { toValue: 0, duration: FADE_TIME, useNativeDriver: true })
           .start(() => {
             const next = (idxRef.current + 1) % imgsRef.current.length;
             setIdx(next);
-            prefetchImage(imgsRef.current[(next + 1) % imgsRef.current.length]?.imageurl);
+            const nxt = imgsRef.current[(next + 1) % imgsRef.current.length];
+            if (nxt) prefetchImage(nxt.imageurl, isPdfFile(nxt));
             Animated.timing(fadeAnim, { toValue: 1, duration: FADE_TIME, useNativeDriver: true }).start();
           });
       }, DISPLAY_TIME + FADE_TIME);
-      return () => clearInterval(interval);
+      return () => clearInterval(iv);
     }, startDelay);
-    return () => clearTimeout(timeout);
+    return () => clearTimeout(t);
   }, [images.length, slotIndex]);
 
   return (
@@ -368,7 +399,7 @@ function SlotSlideshow({ images, slotIndex }: {
 // ─── SlotCell ─────────────────────────────────────────────────────────────────
 function SlotCell({ slot, idx }: { slot: { images: ImageObject[] }; idx: number }) {
   if (slot.images.length === 0)
-    return <ImageCell img={null}           pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} slotIndex={idx} />;
+    return <ImageCell img={null} pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} slotIndex={idx} />;
   if (slot.images.length === 1)
     return <ImageCell img={slot.images[0]} pinColor={PIN_PALETTE[idx % PIN_PALETTE.length]} slotIndex={idx} />;
   return <SlotSlideshow images={slot.images} slotIndex={idx} />;
@@ -428,46 +459,31 @@ function DateTimeDisplay() {
 function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => string; onPress: () => void }) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
 
-  // 🔹 Fetch weather and cache it
   async function loadWeather() {
     try {
       const loc = await getLocation();
       if (!loc) return;
-
       const w = await fetchWeather(loc);
-
       if (w) {
-        setWeather(w); // ✅ update UI
-        await AsyncStorage.setItem("lastWeather", JSON.stringify(w)); // ✅ cache
+        setWeather(w);
+        await AsyncStorage.setItem("lastWeather", JSON.stringify(w));
       }
     } catch (e) {
       console.log("Weather fetch failed:", e);
-      // ❌ don't reset weather → keeps old value
     }
   }
 
   useEffect(() => {
     async function init() {
       try {
-        // 🔹 Load cached weather first
         const cached = await AsyncStorage.getItem("lastWeather");
-        if (cached) {
-          setWeather(JSON.parse(cached));
-        }
-      } catch (e) {
-        console.log("Cache load failed:", e);
-      }
-
-      // 🔹 Then fetch fresh data
+        if (cached) setWeather(JSON.parse(cached));
+      } catch {}
       loadWeather();
     }
-
     init();
-
-    // 🔹 Auto refresh every 10 min
-    const interval = setInterval(loadWeather, 10 * 60 * 1000);
-
-    return () => clearInterval(interval);
+    const iv = setInterval(loadWeather, 10 * 60 * 1000);
+    return () => clearInterval(iv);
   }, []);
 
   return (
@@ -480,16 +496,18 @@ function Header({ loaded, P, onPress }: { loaded: boolean; P: (w: string) => str
           Screenova
         </Text>
       </TouchableOpacity>
-
       <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 8 : 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {weather?.icon && (
-            <Image source={{ uri: `https:${weather.icon}` }} style={{ width: isMobile ? 14 : 20, height: isMobile ? 14 : 20 }} />
-          )}
-          <Text style={{ fontSize: isMobile ? 10 : 14, color: C.primary }}>
-            {weather ? `${weather.temp}°C` : "--"}
-          </Text>
-        </View>
+        {weather && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {weather.icon && (
+              <Image
+                source={{ uri: `https:${weather.icon}` }}
+                style={{ width: isMobile ? 14 : 20, height: isMobile ? 14 : 20 }}
+              />
+            )}
+            <Text style={{ fontSize: isMobile ? 10 : 14, color: C.primary }}>{weather.temp}°C</Text>
+          </View>
+        )}
         <DateTimeDisplay />
       </View>
     </View>
@@ -506,7 +524,6 @@ const hSt = StyleSheet.create({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function TVDisplay() {
   const { width: SW, height: SH } = useWindowDimensions();
-  const fade  = useRef(new Animated.Value(1)).current;
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [loaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const P = (w: string) => (({ "400": "Poppins_400Regular", "600": "Poppins_600SemiBold", "700": "Poppins_700Bold" } as any)[w] || "System");
@@ -578,7 +595,7 @@ export default function TVDisplay() {
         <StatusBar hidden />
         <Header loaded={loaded} P={P} onPress={logout} />
         <View style={{ flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontSize: 72, marginBottom: 24, color: C.primary }}>📭</Text>
+          <Ionicons name="cloud-offline-outline" size={72} color={C.primary} style={{ marginBottom: 24 }} />
           <Text style={{ fontSize: 24, color: C.primary, fontWeight: "600", marginBottom: 12 }}>No Active Content</Text>
           <Text style={{ fontSize: 16, color: C.dimText, textAlign: "center", paddingHorizontal: 40, lineHeight: 22 }}>
             Waiting for content to be assigned{'\n'}to this display
@@ -588,22 +605,20 @@ export default function TVDisplay() {
     );
   }
 
-  const lv        = getLayoutValue(dd.screenLayout);
+  const lv             = getLayoutValue(dd.screenLayout);
   const { rows, cols } = getLayoutDims(dd.screenLayout);
-  const isFeature = isFeatureLayout(lv);
-  const slots     = isFeature ? normalizeSlots(dd.slots, 3) : normalizeSlots(dd.slots, rows * cols);
+  const isFeature      = isFeatureLayout(lv);
+  const slots          = isFeature ? normalizeSlots(dd.slots, 3) : normalizeSlots(dd.slots, rows * cols);
 
   return (
     <View style={[st.root, { width: SW, height: SH }]}>
       <StatusBar hidden />
       <Header loaded={loaded} P={P} onPress={logout} />
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
-        <Animated.View style={{ opacity: fade, flex: 1, padding: GAP }}>
-          {isFeature
-            ? <FeatureLayoutView layout={lv as FeatureLayout} slots={slots} />
-            : <GridView rows={rows} cols={cols} slots={slots} />
-          }
-        </Animated.View>
+      <View style={{ flex: 1, backgroundColor: C.bg, padding: GAP }}>
+        {isFeature
+          ? <FeatureLayoutView layout={lv as FeatureLayout} slots={slots} />
+          : <GridView rows={rows} cols={cols} slots={slots} />
+        }
       </View>
     </View>
   );
@@ -611,10 +626,10 @@ export default function TVDisplay() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: "#2A3462" },
+  root:        { flex: 1, backgroundColor: C.bg },
   cellWrapper: { flex: 1, position: "relative", minHeight: isMobile ? 60 : 100 },
-  floatCard: {
-    flex: 1, backgroundColor: "#2A3462", borderRadius: isMobile ? 4 : 10, overflow: "hidden",
+  floatCard:   {
+    flex: 1, backgroundColor: C.bg, overflow: "hidden",
     ...Platform.select({
       ios:     { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4 },
       android: { elevation: 2 },
@@ -622,24 +637,9 @@ const st = StyleSheet.create({
   },
 
   // ── Loader ──────────────────────────────────────────────────────────────────
-  loaderOverlay: {
-    borderRadius:   isMobile ? 4 : 10,
-    overflow:       "hidden",
-    zIndex:         20,
-    alignItems:     "center",
-    justifyContent: "center",
-  },
-  loaderSpinnerWrap: {
-    alignItems:     "center",
-    justifyContent: "center",
-  },
-  loaderText: {
-    color:       "rgba(255,255,255,0.55)",
-    fontSize:    isMobile ? 9 : 13,
-    fontWeight:  "500",
-    letterSpacing: 0.4,
-    marginTop:   6,
-  },
+  loaderOverlay:     { zIndex: 20, alignItems: "center", justifyContent: "center" },
+  loaderSpinnerWrap: { alignItems: "center", justifyContent: "center", zIndex: 1 },
+  loaderText:        { color: "rgba(255,255,255,0.55)", fontSize: isMobile ? 9 : 13, fontWeight: "500", letterSpacing: 0.4, marginTop: 6 },
 
   // ── Pin ─────────────────────────────────────────────────────────────────────
   pinAnchor:  { position: "absolute", zIndex: 40 },
@@ -648,13 +648,18 @@ const st = StyleSheet.create({
   pinNeedle:  { width: 1.5, backgroundColor: "#888", marginTop: -1 },
   pinGround:  { height: 2, borderRadius: 2, marginTop: 1, backgroundColor: "rgba(0,0,0,0.1)" },
 
+  // ── PDF Badge ───────────────────────────────────────────────────────────────
+  pdfBadge: {
+    position: "absolute", top: 4, right: 4,
+    backgroundColor: "rgba(245,158,11,0.9)",
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 4, flexDirection: "row", alignItems: "center", gap: 3, zIndex: 50,
+  },
+  pdfBadgeText: { color: "#fff", fontSize: isMobile ? 8 : 10, fontWeight: "700" },
+
   // ── Empty / counter ──────────────────────────────────────────────────────────
   emptySlot:       { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyIcon:       { fontSize: isMobile ? 16 : 28, opacity: 0.3 },
-  slotCounter: {
-    position: "absolute", bottom: 4, right: 4,
-    backgroundColor: "rgba(0,0,0,0.4)", paddingHorizontal: 5, paddingVertical: 2,
-    borderRadius: 6, zIndex: 50,
-  },
+  slotCounter:     { position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.4)", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, zIndex: 50 },
   slotCounterText: { color: "#fff", fontSize: isMobile ? 8 : 10, fontWeight: "500" },
 });

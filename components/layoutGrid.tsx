@@ -1,4 +1,7 @@
 // components/layoutGrid.tsx
+//
+// ✦ Added "single_col" layout value: N images → N slots stacked vertically,
+//   one image per slot (used for PDF-style sequential viewing)
 
 import React, { useState } from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
@@ -57,6 +60,18 @@ export const LayoutMiniPreview = ({
       {children}
     </View>
   );
+
+  /* ───────────────────────────────
+     SINGLE COLUMN (sequential/PDF)
+  ─────────────────────────────── */
+  if (config.type === "single_col") {
+    const rows = config.slots ?? 4;
+    return wrap(
+      <View style={{ flex: 1, flexDirection: "column", gap }}>
+        {Array.from({ length: rows }).map((_, r) => box(`sc-${r}`))}
+      </View>
+    );
+  }
 
   /* ───────────────────────────────
      GRID (EQUAL CELLS)
@@ -136,6 +151,7 @@ export const LayoutMiniPreview = ({
 
   return null;
 };
+
 // ─── SLOT COMPONENT — supports multiple imageIds ──────────────────────────────
 
 interface SlotProps {
@@ -151,6 +167,8 @@ interface SlotProps {
   compact?: boolean;
 }
 
+// In layoutGrid.tsx, update the Slot component:
+
 const Slot = ({
   slotIdx,
   imageIds,
@@ -164,7 +182,7 @@ const Slot = ({
   compact,
 }: SlotProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  
+
   const images = imageIds
     .map((id) => imageList.find((i) => i.imageId === id))
     .filter(Boolean) as ImageItem[];
@@ -184,7 +202,6 @@ const Slot = ({
     }
   };
 
-  // Reset index when images change
   React.useEffect(() => {
     if (currentImageIndex >= images.length) {
       setCurrentImageIndex(Math.max(0, images.length - 1));
@@ -196,11 +213,16 @@ const Slot = ({
       style={[
         styles.slotContainer,
         compact && styles.compactSlot,
-        isTarget && styles.targetSlot
+        isTarget && styles.targetSlot,
       ]}
       onPress={() => onPress?.(slotIdx)}
       activeOpacity={onPress ? 0.7 : 1}
     >
+      {/* ✦ ADDED: Slot order number */}
+      <View style={styles.slotOrderBadge}>
+        <Text style={styles.slotOrderText}>{slotIdx + 1}</Text>
+      </View>
+
       {currentImage?.imageurl ? (
         <View style={styles.imageWrapper}>
           <Image
@@ -208,8 +230,7 @@ const Slot = ({
             style={styles.slotImage}
             resizeMode="contain"
           />
-          
-          {/* Navigation arrows for multiple images */}
+
           {hasMultipleImages && (
             <>
               {currentImageIndex > 0 && (
@@ -228,8 +249,6 @@ const Slot = ({
                   <Ionicons name="chevron-forward" size={18} color="#fff" />
                 </TouchableOpacity>
               )}
-              
-              {/* Image counter */}
               <View style={styles.imageCounter}>
                 <Text style={styles.imageCounterText}>
                   {currentImageIndex + 1}/{images.length}
@@ -238,7 +257,6 @@ const Slot = ({
             </>
           )}
 
-          {/* Remove button */}
           {onRemove && (
             <TouchableOpacity
               style={styles.removeButton}
@@ -263,7 +281,6 @@ const Slot = ({
         </View>
       )}
 
-      {/* ADD button */}
       {onAdd && !compact && (
         <TouchableOpacity
           style={styles.addButton}
@@ -273,7 +290,6 @@ const Slot = ({
         </TouchableOpacity>
       )}
 
-      {/* Multiple images indicator */}
       {hasMultipleImages && !compact && (
         <View style={styles.multipleIndicator}>
           <Ionicons name="images-outline" size={12} color="#fff" />
@@ -332,6 +348,20 @@ export const LayoutGrid = ({
     />
   );
 
+  // ✦ SINGLE COLUMN — each slot is its own full-width row (sequential/PDF style)
+  // Slot count is driven by however many slots[] entries exist
+  if (layoutValue === "single_col") {
+    return (
+      <View style={{ flex: 1, flexDirection: "column" }}>
+        {slots.map((_, idx) => (
+          <View key={idx} style={{ flex: 1 }}>
+            {S(idx)}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   // 🔥 FEATURE LEFT
   if (layoutValue === "f2") {
     return (
@@ -384,14 +414,12 @@ export const LayoutGrid = ({
     );
   }
 
-  // ✅ DEFAULT GRID (your existing logic)
+  // ✅ DEFAULT GRID
   return (
     <>
       {Array.from({ length: rows }).map((_, r) => (
         <View key={r} style={{ flex: 1, flexDirection: "row" }}>
-          {Array.from({ length: cols }).map((_, c) =>
-            S(r * cols + c)
-          )}
+          {Array.from({ length: cols }).map((_, c) => S(r * cols + c))}
         </View>
       ))}
     </>
@@ -426,6 +454,23 @@ const styles = StyleSheet.create({
     height: "100%",
     position: "relative",
     backgroundColor: "#0A1628",
+  },
+    slotOrderBadge: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 6,
+  },
+  slotOrderText: {
+    color: "#fff",
+    fontSize: 10,
+    fontFamily: "Poppins_600SemiBold",
   },
   slotImage: {
     width: "100%",

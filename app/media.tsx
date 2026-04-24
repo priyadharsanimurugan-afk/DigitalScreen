@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Image, SafeAreaView, ActivityIndicator, Platform, Modal,
+  Image, SafeAreaView, ActivityIndicator, Platform, Modal, Linking,
 } from "react-native";
 import {
   useFonts, Poppins_400Regular, Poppins_500Medium,
@@ -19,22 +19,14 @@ import { ImageItem } from "@/services/images";
 import {
   COLORS, FONTS,
   screen, header, search, stats, grid,
-  pagination, loading as loadingStyle, empty,
+  pagination as paginationStyle, loading as loadingStyle, empty,
   dialog as dialogStyle, modalStyles,
 } from "./media.styles";
 import { toastConfig } from "@/constants/toastConfig";
 
-const PAGE_SIZE = 12;
-
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
-function ConfirmDialog({
-  visible,
-  onConfirm,
-  onCancel,
-}: {
-  visible: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+function ConfirmDialog({ visible, onConfirm, onCancel }: {
+  visible: boolean; onConfirm: () => void; onCancel: () => void;
 }) {
   if (!visible) return null;
   return (
@@ -43,7 +35,7 @@ function ConfirmDialog({
         <View style={dialogStyle.iconWrap}>
           <Ionicons name="trash-outline" size={28} color={COLORS.red} />
         </View>
-        <Text style={dialogStyle.title}>Delete Image</Text>
+        <Text style={dialogStyle.title}>Delete File</Text>
         <Text style={dialogStyle.msg}>Are you sure? This cannot be undone.</Text>
         <View style={dialogStyle.actions}>
           <TouchableOpacity style={dialogStyle.cancelBtn} onPress={onCancel}>
@@ -59,42 +51,22 @@ function ConfirmDialog({
 }
 
 // ── Fullscreen Image Modal ────────────────────────────────────────────────────
-function FullscreenImageModal({
-  visible,
-  imageUrl,
-  imageName,
-  onClose,
-}: {
-  visible: boolean;
-  imageUrl: string | null;
-  imageName: string;
-  onClose: () => void;
+function FullscreenImageModal({ visible, imageUrl, imageName, onClose }: {
+  visible: boolean; imageUrl: string | null; imageName: string; onClose: () => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
-
   if (!visible || !imageUrl) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={modalStyles.overlay}>
         <View style={modalStyles.header}>
-          <Text style={modalStyles.title} numberOfLines={1}>
-            {imageName || "Image Preview"}
-          </Text>
+          <Text style={modalStyles.title} numberOfLines={1}>{imageName || "Preview"}</Text>
           <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn}>
             <Ionicons name="close-outline" size={28} color={COLORS.white} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={modalStyles.content}
-          activeOpacity={1}
-          onPress={onClose}
-        >
+        <TouchableOpacity style={modalStyles.content} activeOpacity={1} onPress={onClose}>
           {!imgLoaded && (
             <View style={modalStyles.loaderWrap}>
               <ActivityIndicator size="large" color={COLORS.white} />
@@ -112,38 +84,88 @@ function FullscreenImageModal({
   );
 }
 
-// ── Image Card ────────────────────────────────────────────────────────────────
-function MediaCard({
-  item,
-  onDelete,
-  onPressImage,
-}: {
+// ── PDF Preview Modal (web: iframe, mobile: open link) ───────────────────────
+function PdfPreviewModal({ visible, pdfUrl, pdfName, onClose }: {
+  visible: boolean; pdfUrl: string | null; pdfName: string; onClose: () => void;
+}) {
+  if (!visible || !pdfUrl) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.header}>
+          <Text style={modalStyles.title} numberOfLines={1}>{pdfName || "PDF Preview"}</Text>
+          <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn}>
+            <Ionicons name="close-outline" size={28} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+
+        {Platform.OS === "web" ? (
+          // ✅ Render PDF inline using iframe on web
+          <View style={{ flex: 1, width: "100%" }}>
+            {/* @ts-ignore */}
+            <iframe
+              src={pdfUrl}
+              style={{ width: "100%", height: "100%", border: "none", background: "#fff" }}
+              title={pdfName}
+            />
+          </View>
+        ) : (
+          // ✅ Mobile: show open button since iframe is not available
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 16 }}>
+            <Ionicons name="document-text-outline" size={64} color="#fff" />
+            {/* <Text style={{ color: "#fff", fontFamily: FONTS.medium, fontSize: 14, textAlign: "center" }}>
+              PDF preview is not available{"\n"}in the app.
+            </Text> */}
+            <TouchableOpacity
+              onPress={() => { Linking.openURL(pdfUrl); onClose(); }}
+              style={{
+                backgroundColor: "#A16207", paddingHorizontal: 24, paddingVertical: 12,
+                borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 8,
+              }}
+            >
+              <Ionicons name="open-outline" size={18} color="#fff" />
+              <Text style={{ color: "#fff", fontFamily: FONTS.semiBold, fontSize: 14 }}>
+                Open PDF
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+// ── Media Card ────────────────────────────────────────────────────────────────
+function MediaCard({ item, onDelete, onPressImage, onPressPdf }: {
   item: ImageItem;
   onDelete: (id: number) => void;
   onPressImage: (url: string, name: string) => void;
+  onPressPdf: (url: string, name: string) => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 3;
 
+  // ✅ Detect PDF by URL content-type hint or name extension
+// In MediaCard — prioritize mimeType, fallback to name/url
+const isPdf =
+  (item as any).mimeType === "application/pdf" ||
+  item.imageName?.toLowerCase().endsWith(".pdf") ||
+  item.imageUrl?.toLowerCase().includes(".pdf");
+
+
   const handleImageError = () => {
     if (retryCount < maxRetries) {
-      setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        setImgError(false);
-      }, 1000 * (retryCount + 1));
+      setTimeout(() => { setRetryCount(p => p + 1); setImgError(false); }, 1000 * (retryCount + 1));
     } else {
       setImgError(true);
     }
   };
 
   const dateStr = item.createdAt
-    ? new Date(item.createdAt).toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
+    ? new Date(item.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
     : "";
 
   return (
@@ -151,44 +173,53 @@ function MediaCard({
       <TouchableOpacity
         style={grid.imgWrap}
         activeOpacity={0.9}
-        onPress={() => onPressImage(item.imageUrl, item.imageName || "Image")}
+        onPress={() => isPdf
+          ? onPressPdf(item.imageUrl, item.imageName || "Document")
+          : onPressImage(item.imageUrl, item.imageName || "Image")
+        }
       >
-        {!imgLoaded && !imgError && (
-          <View style={grid.shimmer}>
-            <ActivityIndicator size="small" color={COLORS.blue} />
-          </View>
-        )}
-
-        {imgError ? (
-          <View style={[grid.shimmer, { gap: 6 }]}>
-            <Ionicons name="image-outline" size={28} color={COLORS.textLight} />
-            <Text style={{ fontSize: 10, color: COLORS.textLight, fontFamily: FONTS.regular }}>
-              No preview
+        {isPdf ? (
+          // ✅ PDF card: yellow background with icon
+          <View style={[grid.shimmer, { gap: 8, backgroundColor: "#FEF3C7" }]}>
+            <Ionicons name="document-text-outline" size={36} color="#A16207" />
+            <Text style={{ fontSize: 10, color: "#A16207", fontFamily: FONTS.regular, textAlign: "center" }}>
+              Tap to Preview
             </Text>
           </View>
         ) : (
-          <Image
-            key={`${item.id}-${retryCount}`}
-            source={{ uri: item.imageUrl }}
-            style={[grid.thumb, !imgLoaded && { position: "absolute", opacity: 0 }]}
-            resizeMode="cover"
-            onLoad={() => setImgLoaded(true)}
-            onError={handleImageError}
-          />
+          <>
+            {!imgLoaded && !imgError && (
+              <View style={grid.shimmer}>
+                <ActivityIndicator size="small" color={COLORS.blue} />
+              </View>
+            )}
+            {imgError ? (
+              <View style={[grid.shimmer, { gap: 6 }]}>
+                <Ionicons name="image-outline" size={28} color={COLORS.textLight} />
+                <Text style={{ fontSize: 10, color: COLORS.textLight, fontFamily: FONTS.regular }}>No preview</Text>
+              </View>
+            ) : (
+              <Image
+                key={`${item.id}-${retryCount}`}
+                source={{ uri: item.imageUrl }}
+                style={[grid.thumb, !imgLoaded && { position: "absolute", opacity: 0 }]}
+                resizeMode="cover"
+                onLoad={() => setImgLoaded(true)}
+                onError={handleImageError}
+              />
+            )}
+          </>
         )}
       </TouchableOpacity>
 
-      <View style={grid.badge}>
-        <Ionicons name="image-outline" size={10} color="#fff" />
-        <Text style={grid.badgeText}>IMG</Text>
+      <View style={[grid.badge, isPdf && { backgroundColor: "#A16207" }]}>
+        <Ionicons name={isPdf ? "document-text-outline" : "image-outline"} size={10} color="#fff" />
+        <Text style={grid.badgeText}>{isPdf ? "PDF" : "IMG"}</Text>
       </View>
 
       <View style={grid.body}>
-        <Text style={grid.name} numberOfLines={1}>
-          {item.imageName || "Untitled"}
-        </Text>
+        <Text style={grid.name} numberOfLines={1}>{item.imageName || "Untitled"}</Text>
         {!!dateStr && <Text style={grid.date}>{dateStr}</Text>}
-
         <View style={grid.actions}>
           <TouchableOpacity
             style={[grid.actionBtn, { backgroundColor: COLORS.redLight }]}
@@ -196,7 +227,6 @@ function MediaCard({
           >
             <Ionicons name="trash-outline" size={15} color={COLORS.red} />
           </TouchableOpacity>
-
           {Platform.OS === "web" && !!item.imageUrl && (
             <TouchableOpacity
               style={[grid.actionBtn, { backgroundColor: COLORS.blueLight }]}
@@ -211,83 +241,71 @@ function MediaCard({
   );
 }
 
-// ── Pagination ────────────────────────────────────────────────────────────────
-function Paginator({
-  page,
-  total,
-  onPage,
-}: {
-  page: number;
-  total: number;
-  onPage: (p: number) => void;
+// ── Server-side Paginator ─────────────────────────────────────────────────────
+function Paginator({ page, totalPages, onPage }: {
+  page: number; totalPages: number; onPage: (p: number) => void;
 }) {
-  if (total <= 1) return null;
+  if (totalPages <= 1) return null;
 
   const getVisiblePages = () => {
-    const pages = [];
     const maxVisible = 5;
     let start = Math.max(1, page - Math.floor(maxVisible / 2));
-    let end = Math.min(total, start + maxVisible - 1);
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+    const pages = [];
+    for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   };
 
   const visiblePages = getVisiblePages();
 
   return (
-    <View style={pagination.row}>
+    <View style={paginationStyle.row}>
       <TouchableOpacity
-        style={[pagination.navBtn, page === 1 && pagination.navBtnDisabled]}
+        style={[paginationStyle.navBtn, page === 1 && paginationStyle.navBtnDisabled]}
         onPress={() => page > 1 && onPage(page - 1)}
         disabled={page === 1}
       >
         <Ionicons name="chevron-back" size={14} color={COLORS.textMid} />
-        <Text style={pagination.navText}>Prev</Text>
+        <Text style={paginationStyle.navText}>Prev</Text>
       </TouchableOpacity>
 
       {visiblePages[0] > 1 && (
         <>
-          <TouchableOpacity style={pagination.btn} onPress={() => onPage(1)}>
-            <Text style={pagination.btnText}>1</Text>
+          <TouchableOpacity style={paginationStyle.btn} onPress={() => onPage(1)}>
+            <Text style={paginationStyle.btnText}>1</Text>
           </TouchableOpacity>
-          {visiblePages[0] > 2 && <Text style={pagination.ellipsis}>...</Text>}
+          {visiblePages[0] > 2 && <Text style={paginationStyle.ellipsis}>...</Text>}
         </>
       )}
 
-      {visiblePages.map((p) => (
+      {visiblePages.map(p => (
         <TouchableOpacity
           key={p}
-          style={[pagination.btn, p === page && pagination.btnActive]}
+          style={[paginationStyle.btn, p === page && paginationStyle.btnActive]}
           onPress={() => onPage(p)}
         >
-          <Text style={[pagination.btnText, p === page && pagination.btnTextActive]}>
-            {p}
-          </Text>
+          <Text style={[paginationStyle.btnText, p === page && paginationStyle.btnTextActive]}>{p}</Text>
         </TouchableOpacity>
       ))}
 
-      {visiblePages[visiblePages.length - 1] < total && (
+      {visiblePages[visiblePages.length - 1] < totalPages && (
         <>
-          {visiblePages[visiblePages.length - 1] < total - 1 && (
-            <Text style={pagination.ellipsis}>...</Text>
+          {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
+            <Text style={paginationStyle.ellipsis}>...</Text>
           )}
-          <TouchableOpacity style={pagination.btn} onPress={() => onPage(total)}>
-            <Text style={pagination.btnText}>{total}</Text>
+          <TouchableOpacity style={paginationStyle.btn} onPress={() => onPage(totalPages)}>
+            <Text style={paginationStyle.btnText}>{totalPages}</Text>
           </TouchableOpacity>
         </>
       )}
 
       <TouchableOpacity
-        style={[pagination.navBtn, page === total && pagination.navBtnDisabled]}
-        onPress={() => page < total && onPage(page + 1)}
-        disabled={page === total}
+        style={[paginationStyle.navBtn, page === totalPages && paginationStyle.navBtnDisabled]}
+        onPress={() => page < totalPages && onPage(page + 1)}
+        disabled={page === totalPages}
       >
-        <Text style={pagination.navText}>Next</Text>
+        <Text style={paginationStyle.navText}>Next</Text>
         <Ionicons name="chevron-forward" size={14} color={COLORS.textMid} />
       </TouchableOpacity>
     </View>
@@ -296,93 +314,71 @@ function Paginator({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function MediaScreen() {
-  const [loaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_500Medium,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-  });
-
-  const { images, loading, upload, fetchImages, removeImage } = useImages();
+  const [loaded] = useFonts({ Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold });
+  const { images, loading, upload, fetchImages, removeImage, pagination } = useImages();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [confirmDelete, setConfirmDelete] = useState<{
-    visible: boolean;
-    id: number | null;
-  }>({ visible: false, id: null });
-  const [fullscreenImage, setFullscreenImage] = useState<{
-    visible: boolean;
-    url: string | null;
-    name: string;
-  }>({ visible: false, url: null, name: "" });
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
-  useEffect(() => { fetchImages(); }, []);
-  useEffect(() => { setPage(1); }, [searchQuery]);
+  const [confirmDelete, setConfirmDelete] = useState<{ visible: boolean; id: number | null }>
+    ({ visible: false, id: null });
+  const [fullscreenImage, setFullscreenImage] = useState<{ visible: boolean; url: string | null; name: string }>
+    ({ visible: false, url: null, name: "" });
+  const [pdfPreview, setPdfPreview] = useState<{ visible: boolean; url: string | null; name: string }>
+    ({ visible: false, url: null, name: "" });
+
+  // ✅ Fetch when page changes
+  useEffect(() => {
+    fetchImages(currentPage, PAGE_SIZE);
+  }, [currentPage]);
+
+  // ✅ Reset to page 1 on search (client-side filter within current page)
+  useEffect(() => { setCurrentPage(1); }, [searchQuery]);
 
   if (!loaded) return null;
 
-  const filtered = images.filter((img) =>
+  // Client-side search filter within the current page's items
+  const filtered = images.filter(img =>
     img.imageName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handlePageChange = (p: number) => {
+    setCurrentPage(p);
+  };
 
   const handleUpload = async () => {
     if (Platform.OS === "web") {
       const input = document.createElement("input");
       input.type = "file";
-      input.accept = "image/*";
-      input.multiple = true; // ✅ add this
-     input.onchange = async (e: any) => {
-  const files = Array.from(e.target.files || []);
-  if (files.length === 0) return;
-
-  await Promise.all(
-    files.map((file: any) =>
-      upload(
-        file,
-        file.name.replace(/\.[^/.]+$/, "")
-      )
-    )
-  );
-};
-
+      input.accept = "image/*,application/pdf";
+      input.multiple = true;
+      input.onchange = async (e: any) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        await Promise.all(
+          files.map((file: any) => upload(file, file.name.replace(/\.[^/.]+$/, ""), currentPage))
+        );
+      };
       input.click();
       return;
     }
 
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Toast.show({
-        type: 'error',
-        text1: 'Permission Required',
-        text2: 'Please grant media library access',
-        visibilityTime: 2000,
-      });
+      Toast.show({ type: "error", text1: "Permission Required", text2: "Please grant media library access", visibilityTime: 2000 });
       return;
     }
-
- const result = await ImagePicker.launchImageLibraryAsync({
-  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-  quality: 1,
-  allowsMultipleSelection: true, // ✅ important
-});
-
-
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+      allowsMultipleSelection: true,
+    });
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       const name = asset.fileName?.replace(/\.[^/.]+$/, "") || `img_${Date.now()}`;
-      await upload(asset, name);
+      await upload(asset, name, currentPage);
     }
-  };
-
-  const handleOpenFullscreen = (url: string, name: string) => {
-    setFullscreenImage({ visible: true, url, name });
-  };
-
-  const handleCloseFullscreen = () => {
-    setFullscreenImage({ visible: false, url: null, name: "" });
   };
 
   return (
@@ -393,45 +389,26 @@ export default function MediaScreen() {
             <View style={screen.content}>
 
               {/* Header */}
-        {/* Header with Badge */}
-<View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-  <View style={{ flex: 1, gap: 3 }}>
-    {/* Badge - same style as dashboard */}
-    <View style={{
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-      alignSelf: "flex-start",
-      backgroundColor: "#FEF3C7",  // brownLight
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 99,
-      marginBottom: 4,
-      borderWidth: 1,
-      borderColor: "#A1620744",  // brownMid with opacity
-    }}>
-      <Ionicons name="images-outline" size={11} color="#A16207" />
-      <Text style={{
-        fontSize: 10,
-        fontFamily: "Poppins_600SemiBold",
-        color: "#A16207",
-        letterSpacing: 0.5,
-        textTransform: "uppercase",
-      }}>
-        Media Management
-      </Text>
-    </View>
-    
-    <Text style={header.title}>Media Library</Text>
- 
-  </View>
-  
-  <TouchableOpacity style={header.uploadBtn} onPress={handleUpload}>
-    <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
-    <Text style={header.uploadBtnText}>Upload</Text>
-  </TouchableOpacity>
-</View>
-              <Text style={header.sub}>Manage and organize your image assets.</Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <View style={{
+                    flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start",
+                    backgroundColor: "#FEF3C7", paddingHorizontal: 10, paddingVertical: 4,
+                    borderRadius: 99, marginBottom: 4, borderWidth: 1, borderColor: "#A1620744",
+                  }}>
+                    <Ionicons name="images-outline" size={11} color="#A16207" />
+                    <Text style={{ fontSize: 10, fontFamily: "Poppins_600SemiBold", color: "#A16207", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      Media Management
+                    </Text>
+                  </View>
+                  <Text style={header.title}>Media Library</Text>
+                </View>
+                <TouchableOpacity style={header.uploadBtn} onPress={handleUpload}>
+                  <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+                  <Text style={header.uploadBtnText}>Upload</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={header.sub}>Manage and organize your image and PDF assets.</Text>
 
               {/* Search + Stats */}
               <View style={search.container}>
@@ -439,7 +416,7 @@ export default function MediaScreen() {
                   <Ionicons name="search-outline" size={18} color={COLORS.textLight} />
                   <TextInput
                     style={search.input}
-                    placeholder="Search images..."
+                    placeholder="Search files..."
                     placeholderTextColor={COLORS.textLight}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -451,11 +428,10 @@ export default function MediaScreen() {
                   )}
                 </View>
                 <View style={stats.bar}>
-                
-           
                   <View style={stats.item}>
                     <Ionicons name="images-outline" size={14} color={COLORS.brownMid} />
-                    <Text style={stats.text}>Total {images.length}</Text>
+                    {/* ✅ Show server total, not local array length */}
+                    <Text style={stats.text}>Total {pagination.total}</Text>
                   </View>
                 </View>
               </View>
@@ -464,7 +440,7 @@ export default function MediaScreen() {
               {loading && (
                 <View style={loadingStyle.wrap}>
                   <ActivityIndicator size="large" color={COLORS.blue} />
-                  <Text style={loadingStyle.text}>Loading images...</Text>
+                  <Text style={loadingStyle.text}>Loading...</Text>
                 </View>
               )}
 
@@ -475,18 +451,17 @@ export default function MediaScreen() {
                     <View style={grid.uploadIconWrap}>
                       <Ionicons name="add-circle-outline" size={32} color={COLORS.blue} />
                     </View>
-                    <Text style={grid.uploadLabel}>Upload Image</Text>
-                    <Text style={grid.uploadSub}>
-                      {Platform.OS === "web" ? "Click to browse" : "Tap to pick"}
-                    </Text>
+                    <Text style={grid.uploadLabel}>Upload File</Text>
+                    <Text style={grid.uploadSub}>{Platform.OS === "web" ? "Images or PDFs" : "Tap to pick"}</Text>
                   </TouchableOpacity>
 
-                  {paginated.map((item) => (
+                  {filtered.map(item => (
                     <MediaCard
                       key={item.id}
                       item={item}
-                      onDelete={(id) => setConfirmDelete({ visible: true, id })}
-                      onPressImage={handleOpenFullscreen}
+                      onDelete={id => setConfirmDelete({ visible: true, id })}
+                      onPressImage={(url, name) => setFullscreenImage({ visible: true, url, name })}
+                      onPressPdf={(url, name) => setPdfPreview({ visible: true, url, name })}
                     />
                   ))}
                 </View>
@@ -498,16 +473,20 @@ export default function MediaScreen() {
                   <View style={empty.iconWrap}>
                     <Ionicons name="folder-open-outline" size={48} color={COLORS.border} />
                   </View>
-                  <Text style={empty.title}>No images found</Text>
+                  <Text style={empty.title}>No files found</Text>
                   <TouchableOpacity style={empty.btn} onPress={handleUpload}>
-                    <Text style={empty.btnText}>Upload your first image</Text>
+                    <Text style={empty.btnText}>Upload your first file</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* Pagination */}
-              {!loading && filtered.length > 0 && (
-                <Paginator page={page} total={totalPages} onPage={setPage} />
+              {/* ✅ Server-side pagination */}
+              {!loading && pagination.totalPages > 1 && (
+                <Paginator
+                  page={pagination.page}
+                  totalPages={pagination.totalPages}
+                  onPage={handlePageChange}
+                />
               )}
 
             </View>
@@ -517,8 +496,9 @@ export default function MediaScreen() {
             visible={confirmDelete.visible}
             onConfirm={async () => {
               if (confirmDelete.id !== null) {
+                const id = confirmDelete.id;
                 setConfirmDelete({ visible: false, id: null });
-                await removeImage(confirmDelete.id);
+                await removeImage(id, currentPage);
               }
             }}
             onCancel={() => setConfirmDelete({ visible: false, id: null })}
@@ -528,10 +508,17 @@ export default function MediaScreen() {
             visible={fullscreenImage.visible}
             imageUrl={fullscreenImage.url}
             imageName={fullscreenImage.name}
-            onClose={handleCloseFullscreen}
+            onClose={() => setFullscreenImage({ visible: false, url: null, name: "" })}
           />
 
-          {/* Global Toast */}
+          {/* ✅ PDF Preview Modal */}
+          <PdfPreviewModal
+            visible={pdfPreview.visible}
+            pdfUrl={pdfPreview.url}
+            pdfName={pdfPreview.name}
+            onClose={() => setPdfPreview({ visible: false, url: null, name: "" })}
+          />
+
           <Toast config={toastConfig} />
         </View>
       </SafeAreaView>
