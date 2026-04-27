@@ -188,16 +188,70 @@ const loadWeather = async () => {
 };
 
 // ─── FADE IMAGE ───────────────────────────────────────────────────────────────
+// ─── MILD PAN IMAGE (NO ZOOM / NO BLUR) ─────────────────────────────
 const FadeImage: React.FC<{ uri: string; style: object }> = ({ uri, style }) => {
   const opacity = useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
+    // reset on image change
     opacity.setValue(0);
+    translateX.setValue(0);
+
+    // smooth fade-in
     Animated.timing(opacity, {
-      toValue: 1, duration: 700, useNativeDriver: true, easing: Easing.inOut(Easing.ease),
+      toValue: 1,
+      duration: 700,
+      useNativeDriver: true,
+      easing: Easing.inOut(Easing.ease),
     }).start();
+
+    // mild slow pan animation
+    const panAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateX, {
+          toValue: 6, // very small move right
+          duration: 4000,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease),
+        }),
+        Animated.timing(translateX, {
+          toValue: -6, // very small move left
+          duration: 4000,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease),
+        }),
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease),
+        }),
+      ])
+    );
+
+    panAnimation.start();
+
+    return () => {
+      panAnimation.stop();
+    };
   }, [uri]);
-  return <Animated.Image source={{ uri }} style={[style, { opacity }]} resizeMode="contain" />;
+
+  return (
+    <Animated.Image
+      source={{ uri }}
+      resizeMode="contain"
+      style={[
+        style,
+        {
+          opacity,
+          transform: [{ translateX }],
+        },
+      ]}
+    />
+  );
 };
+
 
 // ─── CYCLING SLOT ─────────────────────────────────────────────────────────────
 const CyclingSlot: React.FC<{
