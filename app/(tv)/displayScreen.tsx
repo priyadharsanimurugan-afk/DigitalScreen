@@ -15,6 +15,8 @@ import { deleteTokens, getRefreshToken } from '@/utils/tokenStorage';
 import { notifyAuthChange } from '@/utils/authEvents';
 import { router } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { getLocation, fetchWeather } from '@/utils/weather';
+
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const POLL_INTERVAL      = 8_000;
@@ -26,16 +28,55 @@ interface WeatherData { temp: number; icon: string; condition: string; }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function scaleToScreen(
-  x: number, y: number, w: number, h: number,
-  baseW: number, baseH: number, screenW: number, screenH: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  baseW: number,
+  baseH: number,
+  screenW: number,
+  screenH: number,
 ) {
+  // ONLY mobile portrait should be centered
+  const isMobilePortrait =
+    Platform.OS !== 'web' &&
+    screenW < 768 &&
+    screenH > screenW;
+
+  // DESKTOP / WEB / TV / TABLET
+  // Keep EXACT admin layout positions
+  if (!isMobilePortrait) {
+    return {
+      left: (x / baseW) * screenW,
+      top: (y / baseH) * screenH + HEADER_H,
+      width: (w / baseW) * screenW,
+      height: (h / baseH) * screenH,
+    };
+  }
+
+  // MOBILE PORTRAIT ONLY
+  // Center the whole admin layout without changing proportions
+  const scale = Math.min(
+    screenW / baseW,
+    (screenH - HEADER_H) / baseH
+  );
+
+  const layoutWidth = baseW * scale;
+  const layoutHeight = baseH * scale;
+
+  const offsetX = (screenW - layoutWidth) / 2;
+  const offsetY = ((screenH - HEADER_H) - layoutHeight) / 2;
+
   return {
-    left:   (x / baseW) * screenW,
-    top:    (y / baseH) * screenH + HEADER_H,
-    width:  (w / baseW) * screenW,
-    height: (h / baseH) * screenH,
+    left: offsetX + (x * scale),
+    top: HEADER_H + offsetY + (y * scale),
+    width: w * scale,
+    height: h * scale,
   };
 }
+
+
+
 
 // ─── DATE TIME ────────────────────────────────────────────────────────────────
 const DateTimeDisplay: React.FC = () => {
@@ -80,15 +121,35 @@ const Header: React.FC<{ onPress: () => void }> = ({ onPress }) => {
     lastTap.current = now;
   };
 
-  const loadWeather = async () => {
-    try {
-      // Replace with your actual location + weather logic
-      const cached = await AsyncStorage.getItem('lastWeather');
-      if (cached) setWeather(JSON.parse(cached));
-    } catch (e) {
-      console.log('Weather load failed:', e);
+const loadWeather = async () => {
+  try {
+    // 1. Try cached weather first (fast UI)
+    const cached = await AsyncStorage.getItem('lastWeather');
+    if (cached) {
+      setWeather(JSON.parse(cached));
     }
-  };
+
+    // 2. Get live location
+    const location = await getLocation();
+    if (!location) return;
+
+    // 3. Fetch latest weather
+    const latestWeather = await fetchWeather(location);
+    if (!latestWeather) return;
+
+    // 4. Update UI
+    setWeather(latestWeather);
+
+    // 5. Save latest weather to cache
+    await AsyncStorage.setItem(
+      'lastWeather',
+      JSON.stringify(latestWeather)
+    );
+  } catch (e) {
+    console.log('Weather load failed:', e);
+  }
+};
+
 
   useEffect(() => {
     loadWeather();
@@ -228,27 +289,41 @@ export default function TVDisplayScreen() {
   }, [fetchCanvas]);
 
   // ── Build slots - EXACTLY like original, NO changes ─────────────────────
-  const slots = (() => {
-    if (!canvas?.items?.length) return [];
-    const contentH = height - HEADER_H;
-    const groups = new Map<number, any[]>();
+const slots = (() => {
+  if (!canvas?.items?.length) return [];
 
-    canvas.items.forEach(item => {
-      const si = item.slotIndex ?? 0;
-      if (!groups.has(si)) groups.set(si, []);
-      groups.get(si)!.push(item);
-    });
+  const groups = new Map<number, any[]>();
 
-    return Array.from(groups.entries()).map(([slotIndex, items]) => ({
-      slotIndex,
-      items,
-      frame: scaleToScreen(
-        items[0].x, items[0].y, items[0].width, items[0].height,
-        canvas.screenWidth, canvas.screenHeight,
-        width, contentH,
-      ),
-    }));
-  })();
+  canvas.items.forEach(item => {
+    const si = item.slotIndex ?? 0;
+
+    if (!groups.has(si)) {
+      groups.set(si, []);
+    }
+
+    groups.get(si)!.push(item);
+  });
+
+  return Array.from(groups.entries()).map(([slotIndex, items]) => ({
+    slotIndex,
+    items,
+    frame: scaleToScreen(
+      items[0].x,
+      items[0].y,
+      items[0].width,
+      items[0].height,
+
+      // USE EXACT API VALUES
+      canvas.screenWidth,
+      canvas.screenHeight,
+
+      width,
+      height
+    ),
+  }));
+})();
+
+
 
   // ── Render - EXACTLY like original ──────────────────────────────────────
   return (
@@ -294,7 +369,7 @@ export default function TVDisplayScreen() {
 }
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { backgroundColor: '#1E2A4A', position: 'relative', overflow: 'hidden' },
+  root: { backgroundColor: '#253666', position: 'relative', overflow: 'hidden' },
 
   header: {
     position: 'absolute', top: 0, left: 0, right: 0, height: HEADER_H,
