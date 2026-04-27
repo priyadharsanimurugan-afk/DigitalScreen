@@ -296,28 +296,45 @@ export default function TVDisplayScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Force portrait ONLY on mobile, LEAVE WEB/TV ALONE ──────────────────
-  useEffect(() => {
-    // Don't do anything on web - keep original behavior
-    if (Platform.OS === 'web') return;
+useEffect(() => {
+  const forcePortrait = async () => {
+    try {
+      console.log("STEP 1 → Starting portrait lock");
 
-    const lockMobile = async () => {
-      try {
-        await ScreenOrientation.lockAsync(
-          ScreenOrientation.OrientationLock.PORTRAIT_UP
-        );
-      } catch (e) {
-        console.log('Mobile lock failed:', e);
-      }
-    };
+      await ScreenOrientation.unlockAsync();
+      console.log("STEP 2 → Previous orientation unlocked");
 
-    lockMobile();
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP
+      );
+      console.log("STEP 3 → Portrait lock applied");
 
-    return () => {
-      if (Platform.OS !== 'web') {
-        ScreenOrientation.unlockAsync().catch(() => {});
-      }
-    };
-  }, []);
+      const currentOrientation =
+        await ScreenOrientation.getOrientationAsync();
+
+      console.log(
+        "STEP 4 → Current orientation value:",
+        currentOrientation
+      );
+
+      setTimeout(() => {
+        console.log("STEP 5 → Refetching canvas after orientation lock");
+        fetchCanvas();
+      }, 500);
+
+    } catch (e) {
+      console.log("PORTRAIT LOCK ERROR →", e);
+    }
+  };
+
+  if (Platform.OS !== "web") {
+    console.log("STEP 0 → Mobile device detected, forcing portrait");
+    forcePortrait();
+  } else {
+    console.log("WEB detected → skipping portrait lock");
+  }
+}, []);
+
 
   // ── Data fetching ────────────────────────────────────────────────────────
   const fetchCanvas = useCallback(async () => {
@@ -381,7 +398,7 @@ const slots = (() => {
 
   // ── Render - EXACTLY like original ──────────────────────────────────────
   return (
-    <View style={[styles.root, { width, height }]}>
+    <View style={[styles.root]}>
       <StatusBar hidden />
       <Header onPress={fetchCanvas} />
       <View style={styles.contentArea}>
@@ -423,7 +440,13 @@ const slots = (() => {
 }
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  root: { backgroundColor: '#253666', position: 'relative', overflow: 'hidden' },
+root: {
+  flex: 1,
+  backgroundColor: '#253666',
+  position: 'relative',
+  overflow: 'hidden',
+},
+
 
   header: {
     position: 'absolute', top: 0, left: 0, right: 0, height: HEADER_H,
@@ -445,7 +468,7 @@ const styles = StyleSheet.create({
   timeText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
 
   contentArea: { flex: 1, backgroundColor: '#2A3462', position: 'relative' },
-  slot: { position: 'absolute', backgroundColor: '#2A3462', overflow: 'hidden' },
+  slot: { position: 'absolute', backgroundColor: 'transparent', overflow: 'hidden' },
 
   dots: { position: 'absolute', bottom: 8, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },

@@ -1,267 +1,369 @@
-// AdminLayoutStudio.tsx — Web-only version with stable drag/resize
+// AdminLayoutStudio.tsx — Production-grade rewrite
+// Fixes: 4-side resize, bounds clamping, zIndex overlap control,
+//        multi-image slots, backend payload parity, clean UI
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, {
+  useState, useEffect, useRef, useCallback, useMemo,
+} from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Image, StyleSheet,
-  useWindowDimensions, Alert, Modal, ActivityIndicator,
-  Pressable,
+  useWindowDimensions, Alert, Modal, ActivityIndicator, Pressable,
 } from 'react-native';
 import Animated, {
-  useSharedValue, useAnimatedStyle, runOnJS,
+  useSharedValue, useAnimatedStyle, runOnJS, withSpring,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
-  Monitor, Tv, Trash2, Send, Grid3X3, X, Layers,
-  ImageIcon, CheckCircle, ArrowUp, ArrowDown, Plus, MinusCircle,
+  Gesture, GestureDetector, GestureHandlerRootView,
+} from 'react-native-gesture-handler';
+import {
+  Monitor, Tv, Trash2, Send, Grid3X3, X, Layers, ImageIcon,
+  CheckCircle, Plus, MinusCircle, ChevronLeft, ChevronRight,
+  ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown,
 } from 'lucide-react-native';
 
-import { getContentLUT, sendCanvasContent, ContentLUT, ImageItem, DeviceLUTItem } from '@/services/content';
+import {
+  getContentLUT, sendCanvasContent,
+  ContentLUT, ImageItem, DeviceLUTItem,
+} from '@/services/content';
 import ResponsiveLayout from '@/components/responsiveLayout';
 import { useLocalSearchParams } from 'expo-router';
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
-const C = {
-  primary: '#1E3A8A', primaryLight: '#3B5FC0', primaryGhost: '#EEF2FF',
-  bg: '#F0F4FF', surface: '#FFFFFF', surfaceAlt: '#F8FAFC',
-  text: '#0F172A', textMid: '#334155', textLight: '#64748B',
-  border: '#E2E8F0', topBar: '#1E3A8A',
-  success: '#059669', danger: '#DC2626', dangerBg: '#FEE2E2',
+const T = {
+  bg: '#F8F9FC',           // Light background instead of dark
+  surface: '#FFFFFF',       // White surfaces
+  surfaceRaised: '#F1F3F9', // Slightly raised white
+  border: '#E2E8F0',        // Light gray border
+  borderLight: '#EDF2F7',   // Lighter border
+  accent: '#1E3A8A',        // Your primary color
+  accentDim: '#3b53b4',     // Darker version of primary
+  accentGhost: '#EBEDF5',   // Very light primary tint
+  success: '#10B981',       // Keep success green
+  danger: '#EF4444',        // Keep danger red
+  dangerBg: '#FEF2F2',      // Light red background
+  text: '#1E293B',          // Dark text for contrast
+  textMid: '#64748B',       // Medium gray text
+  textDim: '#94A3B8',       // Dim text
+  handle: '#1E3A8A',        // Primary color for handles
+  handleBg: '#FFFFFF',      // White handle background
+  selectedBorder: '#1E3A8A', // Primary color for selection
+  white: '#FFFFFF',
 } as const;
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
-interface SlotImage { id: string; imageId: number; imageurl: string; }
-interface CanvasItem {
-  id: string; images: SlotImage[]; currentImageIndex: number;
-  x: number; y: number; w: number; h: number; zIndex: number;
+export interface SlotImage {
+  id: string;
+  imageId: number;
+  imageurl: string;
 }
 
-const CANVAS_BASE_W = 1920;
+export interface CanvasItem {
+  id: string;
+  images: SlotImage[];
+  currentImageIndex: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  zIndex: number;
+}
+
+// Resize handle types
+type HandleDir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const CANVAS_W = 1920;
+const CANVAS_H = 1080;
 const SNAP = 20;
+const MIN_W = 120;
+const MIN_H = 68;
+
 const snap = (v: number) => Math.round(v / SNAP) * SNAP;
-const uid  = () => `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+const uid  = () => `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-// ─── CANVAS ITEM ──────────────────────────────────────────────────────────────
+// ─── RESIZE HANDLE CONFIG ─────────────────────────────────────────────────────
+const HANDLES: { dir: HandleDir; style: object }[] = [
+  { dir: 'nw', style: { top: -6, left: -6, cursor: 'nw-resize' } },
+  { dir: 'ne', style: { top: -6, right: -6, cursor: 'ne-resize' } },
+  { dir: 'sw', style: { bottom: -6, left: -6, cursor: 'sw-resize' } },
+  { dir: 'se', style: { bottom: -6, right: -6, cursor: 'se-resize' } },
+  { dir: 'n',  style: { top: -5, left: '50%', marginLeft: -8, cursor: 'n-resize' } },
+  { dir: 's',  style: { bottom: -5, left: '50%', marginLeft: -8, cursor: 's-resize' } },
+  { dir: 'w',  style: { left: -5, top: '50%', marginTop: -8, cursor: 'w-resize' } },
+  { dir: 'e',  style: { right: -5, top: '50%', marginTop: -8, cursor: 'e-resize' } },
+];
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function applyResize(
+  dir: HandleDir,
+  dx: number,
+  dy: number,
+  startX: number, startY: number,
+  startW: number, startH: number,
+  scale: number,
+  canvasW: number, canvasH: number,
+): { x: number; y: number; w: number; h: number } {
+  let x = startX, y = startY, w = startW, h = startH;
+  const dxL = dx / scale;  // deltas in logical units
+  const dyL = dy / scale;
+
+  if (dir.includes('e')) w = Math.max(MIN_W, startW + dxL);
+  if (dir.includes('s')) h = Math.max(MIN_H, startH + dyL);
+  if (dir.includes('w')) {
+    const nw = Math.max(MIN_W, startW - dxL);
+    x = startX + (startW - nw);
+    w = nw;
+  }
+  if (dir.includes('n')) {
+    const nh = Math.max(MIN_H, startH - dyL);
+    y = startY + (startH - nh);
+    h = nh;
+  }
+
+  // Clamp to canvas
+  x = clamp(x, 0, canvasW - MIN_W);
+  y = clamp(y, 0, canvasH - MIN_H);
+  w = clamp(w, MIN_W, canvasW - x);
+  h = clamp(h, MIN_H, canvasH - y);
+
+  return { x: snap(x), y: snap(y), w: snap(w), h: snap(h) };
+}
+
+// ─── SINGLE CANVAS ITEM ───────────────────────────────────────────────────────
 const CanvasItemView: React.FC<{
-  item: CanvasItem; selected: boolean; scale: number; imageBaseUrl: string;
-  onSelect: () => void; onUpdate: (u: Partial<CanvasItem>) => void;
-  onDelete: () => void; onAddImage: () => void; onRemoveImage: (id: string) => void;
-}> = ({ item, selected, scale, imageBaseUrl, onSelect, onUpdate, onDelete, onAddImage, onRemoveImage }) => {
-
-  const isDraggingRef = useRef(false);
-  const isResizingRef = useRef(false);
-
+  item: CanvasItem;
+  selected: boolean;
+  scale: number;
+  imageBaseUrl: string;
+  canvasLogW: number;
+  canvasLogH: number;
+  onSelect: () => void;
+  onUpdate: (u: Partial<CanvasItem>) => void;
+  onDelete: () => void;
+  onAddImage: () => void;
+  onRemoveCurrentImage: () => void;
+}> = ({
+  item, selected, scale, imageBaseUrl,
+  canvasLogW, canvasLogH,
+  onSelect, onUpdate, onDelete, onAddImage, onRemoveCurrentImage,
+}) => {
+  // Shared values for animated position/size
   const tx = useSharedValue(item.x * scale);
   const ty = useSharedValue(item.y * scale);
   const sw = useSharedValue(item.w * scale);
   const sh = useSharedValue(item.h * scale);
 
+  // Refs for start state during gestures
+  const dragRef = useRef({ active: false, sx: 0, sy: 0 });
+  const resizeRef = useRef({ active: false, dir: 'se' as HandleDir, sx: 0, sy: 0, sw: 0, sh: 0, stx: 0, sty: 0 });
+
+  // Sync from props when not actively gesturing
   useEffect(() => {
-    if (!isDraggingRef.current) {
+    if (!dragRef.current.active && !resizeRef.current.active) {
       tx.value = item.x * scale;
       ty.value = item.y * scale;
-    }
-    if (!isResizingRef.current) {
       sw.value = item.w * scale;
       sh.value = item.h * scale;
     }
   }, [item.x, item.y, item.w, item.h, scale]);
 
-  const startX = useSharedValue(0); const startY = useSharedValue(0);
-  const startW = useSharedValue(0); const startH = useSharedValue(0);
-  const startTX = useSharedValue(0); const startTY = useSharedValue(0);
-
-  const setDragging = useCallback((v: boolean) => { isDraggingRef.current = v; }, []);
-  const setResizing = useCallback((v: boolean) => { isResizingRef.current = v; }, []);
-
+  // ── Drag gesture
   const pan = Gesture.Pan()
-    .minDistance(4)
+    .minDistance(3)
     .onStart(() => {
-      runOnJS(setDragging)(true);
-      startX.value = tx.value;
-      startY.value = ty.value;
+      dragRef.current = { active: true, sx: tx.value, sy: ty.value };
+      runOnJS(onSelect)();
     })
     .onUpdate(e => {
-      tx.value = startX.value + e.translationX;
-      ty.value = startY.value + e.translationY;
+      tx.value = dragRef.current.sx + e.translationX;
+      ty.value = dragRef.current.sy + e.translationY;
     })
     .onEnd(() => {
-      runOnJS(setDragging)(false);
-      runOnJS(onUpdate)({
-        x: Math.max(0, snap(tx.value / scale)),
-        y: Math.max(0, snap(ty.value / scale)),
-      });
+      dragRef.current.active = false;
+      const nx = clamp(snap(tx.value / scale), 0, canvasLogW - item.w);
+      const ny = clamp(snap(ty.value / scale), 0, canvasLogH - item.h);
+      tx.value = nx * scale;
+      ty.value = ny * scale;
+      runOnJS(onUpdate)({ x: nx, y: ny });
     });
 
-  const resizeTL = Gesture.Pan()
-    .minDistance(4)
-    .onStart(() => {
-      runOnJS(setResizing)(true);
-      startTX.value = tx.value; startTY.value = ty.value;
-      startW.value = sw.value; startH.value = sh.value;
-    })
-    .onUpdate(e => {
-      const nw = Math.max(80 * scale, startW.value - e.translationX);
-      const nh = Math.max(60 * scale, startH.value - e.translationY);
-      tx.value = startTX.value + (startW.value - nw);
-      ty.value = startTY.value + (startH.value - nh);
-      sw.value = nw; sh.value = nh;
-    })
-    .onEnd(() => {
-      runOnJS(setResizing)(false);
-      runOnJS(onUpdate)({
-        x: Math.max(0, snap(tx.value / scale)), y: Math.max(0, snap(ty.value / scale)),
-        w: Math.max(80, snap(sw.value / scale)), h: Math.max(60, snap(sh.value / scale)),
+  // ── Factory: one resize gesture per handle direction
+  const makeResize = useCallback((dir: HandleDir) => {
+    return Gesture.Pan()
+      .minDistance(2)
+      .onStart(() => {
+        resizeRef.current = {
+          active: true, dir,
+          sx: tx.value, sy: ty.value,
+          sw: sw.value, sh: sh.value,
+          stx: tx.value, sty: ty.value,
+        };
+        runOnJS(onSelect)();
+      })
+      .onUpdate(e => {
+        const r = resizeRef.current;
+        const res = applyResize(
+          dir,
+          e.translationX, e.translationY,
+          r.sx / scale, r.sy / scale,
+          r.sw / scale, r.sh / scale,
+          scale,
+          canvasLogW, canvasLogH,
+        );
+        tx.value = res.x * scale;
+        ty.value = res.y * scale;
+        sw.value = res.w * scale;
+        sh.value = res.h * scale;
+      })
+      .onEnd(() => {
+        resizeRef.current.active = false;
+        runOnJS(onUpdate)({
+          x: snap(tx.value / scale),
+          y: snap(ty.value / scale),
+          w: snap(sw.value / scale),
+          h: snap(sh.value / scale),
+        });
       });
-    });
-
-  const resizeBR = Gesture.Pan()
-    .minDistance(4)
-    .onStart(() => {
-      runOnJS(setResizing)(true);
-      startW.value = sw.value;
-      startH.value = sh.value;
-    })
-    .onUpdate(e => {
-      sw.value = Math.max(80 * scale, startW.value + e.translationX);
-      sh.value = Math.max(60 * scale, startH.value + e.translationY);
-    })
-    .onEnd(() => {
-      runOnJS(setResizing)(false);
-      runOnJS(onUpdate)({
-        w: Math.max(80, snap(sw.value / scale)),
-        h: Math.max(60, snap(sh.value / scale)),
-      });
-    });
+  }, [scale, canvasLogW, canvasLogH]);
 
   const posStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tx.value }, { translateY: ty.value }],
-    zIndex: selected ? 999 : item.zIndex,
-  }));
-
-  const sizeStyle = useAnimatedStyle(() => ({
     width: sw.value,
     height: sh.value,
+    zIndex: selected ? 9999 : item.zIndex,
   }));
 
-  const H = 14;
-  const current = item.images[item.currentImageIndex];
+  const currentImg = item.images[item.currentImageIndex];
+  const hasMulti   = item.images.length > 1;
+
+  const prevImage = () => onUpdate({
+    currentImageIndex: item.currentImageIndex > 0
+      ? item.currentImageIndex - 1
+      : item.images.length - 1,
+  });
+  const nextImage = () => onUpdate({
+    currentImageIndex: (item.currentImageIndex + 1) % item.images.length,
+  });
 
   return (
-    <Animated.View style={[s.canvasItemOuter, posStyle]}>
-      <Animated.View style={[s.canvasItem, sizeStyle, selected && s.canvasItemSelected]}>
+    <Animated.View style={[styles.itemOuter, posStyle]}>
+      {/* Main pressable / drag area */}
+      <GestureDetector gesture={pan}>
+        <Pressable style={[styles.itemInner, selected && styles.itemSelected]} onPress={onSelect}>
+          {currentImg && (
+            <Image
+              source={{ uri: `${imageBaseUrl}${currentImg.imageurl}` }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="contain"
+            />
+          )}
+          {!currentImg && (
+            <View style={styles.emptySlot}>
+              <ImageIcon size={20} color={T.textDim} />
+              <Text style={styles.emptySlotText}>No image</Text>
+            </View>
+          )}
 
-        <GestureDetector gesture={pan}>
-          <Pressable onPress={onSelect} style={StyleSheet.absoluteFill}>
-            {current && (
-              <Image
-                source={{ uri: `${imageBaseUrl}${current.imageurl}` }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="contain"
+          {/* Image counter badge */}
+          {hasMulti && (
+            <View style={styles.counterBadge} pointerEvents="none">
+              <Text style={styles.counterText}>{item.currentImageIndex + 1}/{item.images.length}</Text>
+            </View>
+          )}
+        </Pressable>
+      </GestureDetector>
+
+      {selected && (
+        <>
+          {/* ── Resize handles (8 directions) */}
+          {HANDLES.map(({ dir, style: pos }) => (
+            <GestureDetector key={dir} gesture={makeResize(dir)}>
+              <View
+                style={[
+                  dir.length === 2 ? styles.handleCorner : styles.handleEdge,
+                  pos as any,
+                ]}
+                hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
               />
-            )}
-            {selected && (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(30,58,138,0.07)' }]} pointerEvents="none" />
-            )}
-            {item.images.length > 1 && (
-              <View style={s.imgCounter} pointerEvents="none">
-                <Text style={s.imgCounterText}>{item.currentImageIndex + 1}/{item.images.length}</Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={s.addImgBtn}
-              onPress={e => { e.stopPropagation(); onAddImage(); }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Plus size={13} color="#fff" />
-            </TouchableOpacity>
-          </Pressable>
-        </GestureDetector>
+            </GestureDetector>
+          ))}
 
-        {selected && (
-          <>
-            {[
-              { g: resizeTL, pos: { top: -H / 2, left: -H / 2 } },
-              { g: resizeTL, pos: { top: -H / 2, right: -H / 2 } },
-              { g: resizeBR, pos: { bottom: -H / 2, left: -H / 2 } },
-              { g: resizeBR, pos: { bottom: -H / 2, right: -H / 2 } },
-            ].map((h, i) => (
-              <GestureDetector key={i} gesture={h.g}>
-                <View style={[s.rHandle, h.pos]} hitSlop={{ top: 12, left: 12, right: 12, bottom: 12 }} />
-              </GestureDetector>
-            ))}
-
-            <TouchableOpacity style={s.deleteFloat} onPress={onDelete}
-              hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}>
-              <Trash2 size={11} color="#fca5a5" />
-            </TouchableOpacity>
-
-            {item.images.length > 1 && (
+          {/* ── Floating action row */}
+          <View style={styles.floatBar}>
+            {hasMulti && (
               <>
-                <View style={s.cycleControls}>
-                  <TouchableOpacity style={s.cycleBtn} onPress={() =>
-                    onUpdate({ currentImageIndex: item.currentImageIndex > 0 ? item.currentImageIndex - 1 : item.images.length - 1 })}>
-                    <Text style={s.cycleBtnText}>◀</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.cycleBtn} onPress={() =>
-                    onUpdate({ currentImageIndex: (item.currentImageIndex + 1) % item.images.length })}>
-                    <Text style={s.cycleBtnText}>▶</Text>
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity style={s.removeImgBtn}
-                  onPress={() => onRemoveImage(item.images[item.currentImageIndex].id)}>
-                  <MinusCircle size={12} color={C.danger} />
+                <TouchableOpacity style={styles.floatBtn} onPress={prevImage}>
+                  <ChevronLeft size={11} color={T.text} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.floatBtn} onPress={nextImage}>
+                  <ChevronRight size={11} color={T.text} />
                 </TouchableOpacity>
               </>
             )}
-          </>
-        )}
-      </Animated.View>
+            <TouchableOpacity style={styles.floatBtn} onPress={onAddImage}>
+              <Plus size={11} color={T.accent} />
+            </TouchableOpacity>
+            {hasMulti && (
+              <TouchableOpacity style={styles.floatBtn} onPress={onRemoveCurrentImage}>
+                <MinusCircle size={11} color={T.danger} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={[styles.floatBtn, styles.floatBtnDanger]} onPress={onDelete}>
+              <Trash2 size={11} color={T.danger} />
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* Add-image quick button (always visible) */}
+      {!selected && (
+        <TouchableOpacity
+          style={styles.quickAdd}
+          onPress={e => { e.stopPropagation(); onAddImage(); }}
+          hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
+        >
+          <Plus size={10} color={T.white} />
+        </TouchableOpacity>
+      )}
     </Animated.View>
   );
 };
 
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function AdminLayoutStudio() {
-  const { width: sw } = useWindowDimensions();
+  const { width: screenW } = useWindowDimensions();
+  const params = useLocalSearchParams();
 
-  const SIDEBAR = 240;
-  const PANEL   = 230;
-  const canvasW = Math.min(sw - SIDEBAR - PANEL - 48, 1100);
-  const canvasH = canvasW * (9 / 16);
-  const scale   = canvasW / CANVAS_BASE_W;
+  // Layout dimensions
+  const SIDEBAR = 220;
+  const PANEL   = 220;
+  const canvasW = Math.min(screenW - SIDEBAR - PANEL - 40, 1200);
+  const canvasH = Math.round(canvasW * (CANVAS_H / CANVAS_W));
+  const scale   = canvasW / CANVAS_W;
 
-  const [lut, setLut]                 = useState<ContentLUT | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [page, setPage]               = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore]         = useState(true);
-  const [items, setItems]             = useState<CanvasItem[]>([]);
-  const [selectedId, setSelectedId]   = useState<string | null>(null);
-  const [sending, setSending]         = useState(false);
-  const [showGrid, setShowGrid]       = useState(true);
+  // Edit-mode params
+  const isEditMode    = params.editMode === 'true';
+  const editItems     = useMemo(() => { try { return params.items ? JSON.parse(params.items as string) : []; } catch { return []; } }, [params.items]);
+  const editDeviceId  = params.deviceId as string;
+
+  // State
+  const [lut, setLut]                   = useState<ContentLUT | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [page, setPage]                 = useState(1);
+  const [loadingMore, setLoadingMore]   = useState(false);
+  const [hasMore, setHasMore]           = useState(true);
+  const [items, setItems]               = useState<CanvasItem[]>([]);
+  const [selectedId, setSelectedId]     = useState<string | null>(null);
+  const [sending, setSending]           = useState(false);
+  const [showGrid, setShowGrid]         = useState(true);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [showImageDrawer, setShowImageDrawer]   = useState(false);
   const [successModal, setSuccessModal]         = useState(false);
   const [selectingFor, setSelectingFor]         = useState<string | null>(null);
+  const [selectedDevices, setSelectedDevices]   = useState<DeviceLUTItem[]>([]);
 
-
-  const params = useLocalSearchParams();
-
-const isEditMode = params.editMode === "true";
-const editItems = React.useMemo(() => {
-  try {
-    return params.items ? JSON.parse(params.items as string) : [];
-  } catch {
-    return [];
-  }
-}, [params.items]);
-
-const editTitle = params.title as string;
-const editDeviceId = params.deviceId as string;
-const editContentId = Number(params.contentId);
-const editScreenWidth = Number(params.screenWidth || 1920);
-const editScreenHeight = Number(params.screenHeight || 1080);
-
+  // Load images
   useEffect(() => { loadImages(1, true); }, []);
 
   const loadImages = async (pageNum: number, reset = false) => {
@@ -269,129 +371,97 @@ const editScreenHeight = Number(params.screenHeight || 1080);
     setLoadingMore(true);
     try {
       const result = await getContentLUT(pageNum, 20);
-      setLut(prev => reset || !prev ? result : { ...result, imageList: [...prev.imageList, ...result.imageList] });
+      setLut(prev =>
+        reset || !prev
+          ? result
+          : { ...result, imageList: [...prev.imageList, ...result.imageList] }
+      );
       setPage(pageNum);
       setHasMore(result.pagination ? pageNum < result.pagination.totalPages : false);
-    } catch { Alert.alert('Error', 'Failed to load content library'); }
-    finally { setLoadingMore(false); if (reset) setLoading(false); }
-  };
- const [selectedDevices, setSelectedDevices] = useState<DeviceLUTItem[]>([]);
-
-
-
-// Also update your existing edit mode useEffect (around line 260-300) 
-// to include the device selection after LUT loads
-useEffect(() => {
-  if (
-    !isEditMode ||
-    !editItems?.length ||
-    !lut?.deviceList?.length ||
-    items.length > 0
-  ) return;
-
-  const groupedMap: Record<string, CanvasItem> = {};
-
-  editItems.forEach((apiItem: any, index: number) => {
-    const key = `slot_${apiItem.slotIndex}`;
-
-    const newImg: SlotImage = {
-      id: `img_${apiItem.imageId}_${index}`,
-      imageId: apiItem.imageId,
-      imageurl: apiItem.imageUrl || apiItem.imageurl || "",
-    };
-
-    if (!groupedMap[key]) {
-      groupedMap[key] = {
-        id: key,
-        images: [newImg],
-        currentImageIndex: 0,
-        x: apiItem.x || 0,
-        y: apiItem.y || 0,
-        w: apiItem.width || 400,
-        h: apiItem.height || 250,
-        zIndex: apiItem.zIndex || index + 1,
-      };
-    } else {
-      groupedMap[key].images.push(newImg);
+    } catch {
+      Alert.alert('Error', 'Failed to load image library.');
+    } finally {
+      setLoadingMore(false);
+      if (reset) setLoading(false);
     }
-  });
+  };
 
-  const finalItems = Object.values(groupedMap);
+  // Populate from edit-mode params
+  useEffect(() => {
+    if (!isEditMode || !editItems?.length || !lut?.deviceList?.length || items.length > 0) return;
+    const map: Record<string, CanvasItem> = {};
+    editItems.forEach((api: any, i: number) => {
+      const key = `slot_${api.slotIndex}`;
+      const img: SlotImage = { id: `img_${api.imageId}_${i}`, imageId: api.imageId, imageurl: api.imageUrl || api.imageurl || '' };
+      if (!map[key]) {
+        map[key] = { id: key, images: [img], currentImageIndex: 0, x: api.x || 0, y: api.y || 0, w: api.width || 400, h: api.height || 250, zIndex: api.zIndex || i + 1 };
+      } else {
+        map[key].images.push(img);
+      }
+    });
+    const final = Object.values(map);
+    setItems(final);
+    if (final.length) setSelectedId(final[0].id);
+    const dev = lut.deviceList.find(d => d.deviceId === editDeviceId);
+    if (dev) setSelectedDevices([dev]);
+  }, [isEditMode, editItems, editDeviceId, lut?.deviceList, items.length]);
 
-  setItems(finalItems);
-
-  if (finalItems.length > 0) {
-    setSelectedId(finalItems[0].id);
-  }
-
-  const deviceToSelect = lut.deviceList.find(
-    device => device.deviceId === editDeviceId
-  );
-
-  if (deviceToSelect) {
-    setSelectedDevices([deviceToSelect]);
-  }
-}, [
-  isEditMode,
-  editItems,
-  editDeviceId,
-  lut?.deviceList,
-  items.length,
-]);
-
-
-  const addImageToCanvas = (img: ImageItem, targetId?: string) => {
+  // ── Item mutations ──────────────────────────────────────────────────────────
+  const addImageToCanvas = useCallback((img: ImageItem, targetId?: string | null) => {
     const newImg: SlotImage = {
       id: `img_${uid()}`,
       imageId: img.imageId,
       imageurl: img.imageurl || img.imageName,
     };
     if (targetId) {
-      setItems(prev => prev.map(it =>
-        it.id === targetId ? { ...it, images: [...it.images, newImg] } : it
-      ));
-      setSelectingFor(null);
-      setShowImageDrawer(false);
+      setItems(prev => prev.map(it => it.id === targetId ? { ...it, images: [...it.images, newImg] } : it));
     } else {
       const count = items.length;
-      const w = snap(CANVAS_BASE_W / 3);
-      const h = snap(w * 9 / 16);
+      const w = snap(CANVAS_W / 3);
+      const h = snap(w * CANVAS_H / CANVAS_W);
       const newItem: CanvasItem = {
         id: `item_${uid()}`,
         images: [newImg],
         currentImageIndex: 0,
-        x: snap((count % 2) * (w + SNAP * 3) + SNAP * 2),
-        y: snap(Math.floor(count / 2) * (h + SNAP * 3) + SNAP * 2),
+        x: snap((count % 3) * (w + SNAP * 2) + SNAP * 2),
+        y: snap(Math.floor(count / 3) * (h + SNAP * 2) + SNAP * 2),
         w, h,
         zIndex: count + 1,
       };
       setItems(prev => [...prev, newItem]);
       setSelectedId(newItem.id);
-      setShowImageDrawer(false);
     }
-  };
+    setSelectingFor(null);
+    setShowImageDrawer(false);
+  }, [items.length]);
 
-  const updateItem = (id: string, u: Partial<CanvasItem>) =>
-    setItems(prev => prev.map(i => i.id === id ? { ...i, ...u } : i));
+  const updateItem = useCallback((id: string, u: Partial<CanvasItem>) =>
+    setItems(prev => prev.map(i => i.id === id ? { ...i, ...u } : i)), []);
 
-  const deleteItem = (id: string) => {
+  const deleteItem = useCallback((id: string) => {
     setItems(prev => prev.filter(i => i.id !== id));
     if (selectedId === id) setSelectedId(null);
-  };
+  }, [selectedId]);
 
-  const moveLayer = (id: string, dir: 'up' | 'down') => {
-    const maxZ = Math.max(...items.map(i => i.zIndex));
-    const minZ = Math.min(...items.map(i => i.zIndex));
-    updateItem(id, { zIndex: dir === 'up' ? maxZ + 1 : Math.max(0, minZ - 1) });
-  };
-
-  const removeImage = (itemId: string, imgId: string) =>
+  const removeCurrentImage = useCallback((itemId: string) => {
     setItems(prev => prev.map(it => {
       if (it.id !== itemId) return it;
-      const imgs = it.images.filter(i => i.id !== imgId);
+      const imgs = it.images.filter((_, i) => i !== it.currentImageIndex);
       if (!imgs.length) return it;
       return { ...it, images: imgs, currentImageIndex: Math.min(it.currentImageIndex, imgs.length - 1) };
     }));
+  }, []);
+
+  // ── zIndex / layer controls ─────────────────────────────────────────────────
+  const bringToFront = (id: string) => {
+    const maxZ = Math.max(...items.map(i => i.zIndex));
+    updateItem(id, { zIndex: maxZ + 1 });
+  };
+  const sendToBack = (id: string) => {
+    const minZ = Math.min(...items.map(i => i.zIndex));
+    updateItem(id, { zIndex: Math.max(0, minZ - 1) });
+  };
+
 
   const toggleDevice = (device: DeviceLUTItem) =>
     setSelectedDevices(prev =>
@@ -400,305 +470,365 @@ useEffect(() => {
         : [...prev, device]
     );
 
+  // ── Bounds validation ───────────────────────────────────────────────────────
+  const validateBounds = (): string | null => {
+    for (const item of items) {
+      if (item.x < 0 || item.y < 0 || item.x + item.w > CANVAS_W || item.y + item.h > CANVAS_H) {
+        return `Slot "${item.id}" is outside the canvas bounds. Please move it inside the layout.`;
+      }
+    }
+    return null;
+  };
+
+  // ── Send to TV ──────────────────────────────────────────────────────────────
   const handleSend = async () => {
-    if (!selectedDevices.length) { Alert.alert('No device', 'Select at least one TV.'); return; }
-    if (!items.length) { Alert.alert('No content', 'Add at least one image.'); return; }
+    if (!selectedDevices.length) { Alert.alert('No Device', 'Please select at least one TV.'); return; }
+    if (!items.length) { Alert.alert('No Content', 'Add at least one image slot.'); return; }
+    const boundsError = validateBounds();
+    if (boundsError) { Alert.alert('Layout Error', boundsError); return; }
+
     setSending(true);
     try {
-      const sendItems = items.flatMap((item, ii) =>
-        item.images.map((img, ji) => ({
-          slotIndex: ii, imageIndex: ji,
-          imageId: img.imageId, imageurl: img.imageurl,
-          x: item.x, y: item.y, width: item.w, height: item.h,
-          pinned: true, zIndex: item.zIndex, resizeMode: 'cover',
+      // Normalize zIndex so it's sequential from 1
+      const sorted = [...items].sort((a, b) => a.zIndex - b.zIndex);
+      const sendItems = sorted.flatMap((item, slotIdx) =>
+        item.images.map((img, imgIdx) => ({
+          slotIndex: slotIdx,
+          imageIndex: imgIdx,
+          imageId: img.imageId,
+          imageurl: img.imageurl,
+          x: item.x,
+          y: item.y,
+          width: item.w,
+          height: item.h,
+          zIndex: slotIdx + 1,        // normalized
+          pinned: true,
+          resizeMode: 'contain',
         }))
       );
+
       await Promise.all(selectedDevices.map(device =>
         sendCanvasContent({
           title: `Layout_${Date.now()}`,
           description: `${items.length} slot(s), ${sendItems.length} image(s)`,
           deviceId: device.deviceId,
-          screenWidth: CANVAS_BASE_W,
-          screenHeight: Math.round(CANVAS_BASE_W * 9 / 16),
+          screenWidth: CANVAS_W,
+          screenHeight: CANVAS_H,
           screenLayout: `${items.length}`,
           items: sendItems,
         })
       ));
       setShowDevicePicker(false);
       setSuccessModal(true);
-    } catch { Alert.alert('Error', 'Failed to send content.'); }
-    finally { setSending(false); }
+    } catch {
+      Alert.alert('Error', 'Failed to send content to TV.');
+    } finally {
+      setSending(false);
+    }
   };
 
-  const selectedItem = items.find(i => i.id === selectedId);
+  const selectedItem  = items.find(i => i.id === selectedId) ?? null;
+  const sortedItems   = useMemo(() => [...items].sort((a, b) => a.zIndex - b.zIndex), [items]);
+  const reversedItems = useMemo(() => [...items].sort((a, b) => b.zIndex - a.zIndex), [items]);
 
+  // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
     <ResponsiveLayout>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={s.root}>
+        <View style={styles.root}>
 
-          {/* ── BLUE TOP BAR ── */}
-          <View style={s.topBar}>
-            <View style={s.topBarLeft}>
-              <Monitor size={18} color="#fff" />
-              <Text style={s.topBarTitle}>Layout Studio</Text>
+          {/* ── TOP BAR ── */}
+          <View style={styles.topBar}>
+            <View style={styles.topBarLeft}>
+              <Monitor size={16} color={T.accent} />
+              <Text style={styles.topBarTitle}>Layout Studio</Text>
+              <View style={styles.topBarDivider} />
+              <Text style={styles.topBarMeta}>{items.length} slot{items.length !== 1 ? 's' : ''}</Text>
             </View>
-            <TouchableOpacity
-              style={s.sendBtn}
-              onPress={() => setShowDevicePicker(true)}
-              disabled={sending || loading}
-            >
-              {sending
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <><Send size={14} color="#fff" /><Text style={s.sendBtnText}>Send to TV</Text></>}
-            </TouchableOpacity>
+            <View style={styles.topBarRight}>
+              <TouchableOpacity style={styles.gridBtn} onPress={() => setShowGrid(g => !g)}>
+                <Grid3X3 size={14} color={showGrid ? T.accent : T.textMid} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendBtn, (sending || loading) && { opacity: 0.5 }]}
+                onPress={() => setShowDevicePicker(true)}
+                disabled={sending || loading}
+              >
+                {sending
+                  ? <ActivityIndicator size="small" color={T.white} />
+                  : <><Send size={13} color={T.white} /><Text style={styles.sendBtnText}>Send to TV</Text></>}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {loading ? (
-            <View style={s.center}>
-              <ActivityIndicator size="large" color={C.primary} />
-              <Text style={s.label}>Loading library…</Text>
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color={T.accent} />
+              <Text style={styles.loadingText}>Loading library…</Text>
             </View>
           ) : (
-            <View style={s.body}>
+            <View style={styles.body}>
 
-              {/* ── LEFT SIDEBAR ── */}
-              <View style={s.sidebar}>
-                <Text style={s.sectionTitle}>Image Library</Text>
-                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
+              {/* ── LEFT SIDEBAR: image library ── */}
+              <View style={styles.sidebar}>
+                <Text style={styles.sectionLabel}>Image Library</Text>
+                <ScrollView
+                  style={{ flex: 1 }}
+                  showsVerticalScrollIndicator={false}
                   onScroll={({ nativeEvent: n }) => {
                     if (n.layoutMeasurement.height + n.contentOffset.y >= n.contentSize.height - 200 && hasMore && !loadingMore)
                       loadImages(page + 1, false);
-                  }}>
+                  }}
+                  scrollEventThrottle={100}
+                >
                   {(lut?.imageList ?? []).map(img => (
-                    <TouchableOpacity key={img.imageId} style={s.imgRow}
-                      onPress={() => addImageToCanvas(img)} activeOpacity={0.7}>
+                    <TouchableOpacity
+                      key={img.imageId}
+                      style={styles.libRow}
+                      onPress={() => addImageToCanvas(img)}
+                      activeOpacity={0.7}
+                    >
                       <Image
                         source={{ uri: `${lut?.imageUrl || ''}${img.imageurl || img.imageName}` }}
-                        style={s.imgThumb} resizeMode="contain"
+                        style={styles.libThumb}
+                        resizeMode="contain"
                       />
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={s.imgName} numberOfLines={2}>{img.imageName}</Text>
-                        <Text style={s.imgId}>ID {img.imageId}</Text>
+                      <View style={styles.libMeta}>
+                        <Text style={styles.libName} numberOfLines={2}>{img.imageName}</Text>
+                        <Text style={styles.libId}>ID {img.imageId}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
-                  {loadingMore && <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />}
-                  {!hasMore && !!lut?.imageList?.length && <Text style={s.endText}>End of library</Text>}
+                  {loadingMore && <ActivityIndicator color={T.accent} style={{ marginVertical: 12 }} />}
+                  {!hasMore && !!lut?.imageList?.length && <Text style={styles.endText}>— End of library —</Text>}
                 </ScrollView>
-                <TouchableOpacity style={s.gridToggle} onPress={() => setShowGrid(g => !g)}>
-                  <Grid3X3 size={14} color={showGrid ? C.primary : C.textLight} />
-                  <Text style={[s.gridToggleText, showGrid && { color: C.primary }]}>
-                    {showGrid ? 'Grid ON' : 'Grid OFF'}
-                  </Text>
-                </TouchableOpacity>
               </View>
 
-              {/* ── CANVAS ── */}
-              <View style={s.canvasArea}>
-                <View style={s.infoBar}>
-                  <Text style={s.infoText}>{items.length} slot{items.length !== 1 ? 's' : ''}</Text>
-                  {selectedItem && (
-                    <Text style={s.infoText}>
-                      X:{selectedItem.x} Y:{selectedItem.y} W:{selectedItem.w} H:{selectedItem.h}
-                    </Text>
-                  )}
-                </View>
-
+              {/* ── CANVAS AREA ── */}
+              <View style={styles.canvasArea}>
                 <Pressable
-                  style={[s.canvas, { width: canvasW, height: canvasH }]}
+                  style={[styles.canvas, { width: canvasW, height: canvasH }]}
                   onPress={() => setSelectedId(null)}
                 >
+                  {/* Grid overlay */}
                   {showGrid && (
                     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-                      {Array.from({ length: Math.floor(canvasH / (SNAP * scale)) + 1 }).map((_, i) =>
-                        <View key={`h${i}`} style={[s.gridLine, { top: i * SNAP * scale, width: '100%', height: 1 }]} />
-                      )}
-                      {Array.from({ length: Math.floor(canvasW / (SNAP * scale)) + 1 }).map((_, i) =>
-                        <View key={`v${i}`} style={[s.gridLine, { left: i * SNAP * scale, height: '100%', width: 1 }]} />
-                      )}
+                      {Array.from({ length: Math.floor(canvasH / (SNAP * scale)) + 1 }).map((_, i) => (
+                        <View key={`h${i}`} style={[styles.gridLine, { top: i * SNAP * scale, width: '100%', height: 1 }]} />
+                      ))}
+                      {Array.from({ length: Math.floor(canvasW / (SNAP * scale)) + 1 }).map((_, i) => (
+                        <View key={`v${i}`} style={[styles.gridLine, { left: i * SNAP * scale, height: '100%', width: 1 }]} />
+                      ))}
                     </View>
                   )}
 
+                  {/* Empty state */}
                   {!items.length && (
-                    <View style={s.emptyCanvas}>
-                      <Grid3X3 size={40} color={C.border} />
-                      <Text style={s.emptyTitle}>Canvas is empty</Text>
-                      <Text style={s.emptySub}>Pick images from the library</Text>
+                    <View style={styles.emptyCanvas}>
+                      <Grid3X3 size={36} color={T.border} />
+                      <Text style={styles.emptyTitle}>Canvas is empty</Text>
+                      <Text style={styles.emptySub}>Tap an image in the library to add it</Text>
                     </View>
                   )}
 
-                  {[...items].sort((a, b) => a.zIndex - b.zIndex).map(item => (
+                  {/* Canvas items (sorted by zIndex ascending) */}
+                  {sortedItems.map(item => (
                     <CanvasItemView
                       key={item.id}
                       item={item}
                       selected={selectedId === item.id}
                       scale={scale}
                       imageBaseUrl={lut?.imageUrl || ''}
+                      canvasLogW={CANVAS_W}
+                      canvasLogH={CANVAS_H}
                       onSelect={() => setSelectedId(item.id)}
                       onUpdate={u => updateItem(item.id, u)}
                       onDelete={() => deleteItem(item.id)}
                       onAddImage={() => { setSelectingFor(item.id); setShowImageDrawer(true); }}
-                      onRemoveImage={imgId => removeImage(item.id, imgId)}
+                      onRemoveCurrentImage={() => removeCurrentImage(item.id)}
                     />
                   ))}
                 </Pressable>
-              </View>
 
-              {/* ── RIGHT PANEL ── */}
-              <View style={s.panel}>
-                <Text style={s.sectionTitle}>Properties</Text>
-                {selectedItem ? (
-                  <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-                    <View style={s.propGroup}>
-                      <Text style={s.propLabel}>Images in Slot</Text>
-                      {selectedItem.images.map((img, idx) => (
-                        <View key={img.id}
-                          style={[s.imgListItem, idx === selectedItem.currentImageIndex && { backgroundColor: C.primaryGhost }]}>
-                          <Image
-                            source={{ uri: `${lut?.imageUrl || ''}${img.imageurl}` }}
-                            style={s.imgListThumb} resizeMode="contain"
-                          />
-                          <Text style={s.imgListName} numberOfLines={1}>#{img.imageId}</Text>
-                          {selectedItem.images.length > 1 && (
-                            <TouchableOpacity onPress={() => removeImage(selectedItem.id, img.id)} style={{ padding: 4 }}>
-                              <MinusCircle size={12} color={C.danger} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
-                      <TouchableOpacity style={s.addToSlotBtn}
-                        onPress={() => { setSelectingFor(selectedItem.id); setShowImageDrawer(true); }}>
-                        <Plus size={14} color={C.primary} />
-                        <Text style={s.addToSlotText}>Add image to slot</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={s.propGroup}>
-                      <Text style={s.propLabel}>Position</Text>
-                      <View style={s.row}>
-                        {(['x', 'y'] as const).map(k => (
-                          <View key={k} style={s.coordBox}>
-                            <Text style={s.coordLbl}>{k.toUpperCase()}</Text>
-                            <Text style={s.coordVal}>{selectedItem[k]}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-
-                    <View style={s.propGroup}>
-                      <Text style={s.propLabel}>Size</Text>
-                      <View style={s.row}>
-                        {(['w', 'h'] as const).map(k => (
-                          <View key={k} style={s.coordBox}>
-                            <Text style={s.coordLbl}>{k.toUpperCase()}</Text>
-                            <Text style={s.coordVal}>{selectedItem[k]}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-
-                    <View style={s.propGroup}>
-                      <Text style={s.propLabel}>Quick Resize</Text>
-                      <View style={s.row}>
-                        <TouchableOpacity style={s.qBtn}
-                          onPress={() => updateItem(selectedItem.id, { w: selectedItem.w + 120, h: selectedItem.h + 68 })}>
-                          <Text style={s.qBtnText}>+ Larger</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[s.qBtn, { borderColor: C.border }]}
-                          onPress={() => updateItem(selectedItem.id, { w: Math.max(80, selectedItem.w - 120), h: Math.max(60, selectedItem.h - 68) })}>
-                          <Text style={[s.qBtnText, { color: C.textLight }]}>− Smaller</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    <View style={s.propGroup}>
-                      <Text style={s.propLabel}>Layer</Text>
-                      <View style={s.row}>
-                        <TouchableOpacity style={s.qBtn} onPress={() => moveLayer(selectedItem.id, 'up')}>
-                          <ArrowUp size={12} color={C.primary} />
-                          <Text style={s.qBtnText}>Front</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[s.qBtn, { borderColor: C.border }]} onPress={() => moveLayer(selectedItem.id, 'down')}>
-                          <ArrowDown size={12} color={C.textLight} />
-                          <Text style={[s.qBtnText, { color: C.textLight }]}>Back</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity style={s.deleteBtn} onPress={() => deleteItem(selectedItem.id)}>
-                      <Trash2 size={14} color={C.danger} />
-                      <Text style={s.deleteBtnText}>Remove slot</Text>
-                    </TouchableOpacity>
-                  </ScrollView>
-                ) : (
-                  <View style={s.nothingSelected}>
-                    <Layers size={28} color={C.border} />
-                    <Text style={s.nothingText}>Select an element{'\n'}to edit properties</Text>
+                {/* Coordinate info bar */}
+                {selectedItem && (
+                  <View style={styles.infoBar}>
+                    <Text style={styles.infoChip}>X: {selectedItem.x}</Text>
+                    <Text style={styles.infoChip}>Y: {selectedItem.y}</Text>
+                    <Text style={styles.infoChip}>W: {selectedItem.w}</Text>
+                    <Text style={styles.infoChip}>H: {selectedItem.h}</Text>
+                    <Text style={styles.infoChip}>Z: {selectedItem.zIndex}</Text>
                   </View>
                 )}
+              </View>
 
-                <View style={s.layerList}>
-                  <Text style={s.sectionTitle}>Layers ({items.length})</Text>
-                  {[...items].reverse().map(it => (
-                    <TouchableOpacity key={it.id}
-                      style={[s.layerRow, selectedId === it.id && { backgroundColor: C.primaryGhost }]}
-                      onPress={() => setSelectedId(it.id)}>
-                      <ImageIcon size={12} color={selectedId === it.id ? C.primary : C.textLight} />
-                      <Text style={[s.layerText, selectedId === it.id && { color: C.primary }]} numberOfLines={1}>
-                        Slot {it.images.length} img(s)
-                      </Text>
-                      <TouchableOpacity onPress={() => deleteItem(it.id)} style={{ marginLeft: 'auto', padding: 4 }}>
-                        <Trash2 size={10} color={C.danger} />
+              {/* ── RIGHT PANEL: properties + layers ── */}
+              <View style={styles.panel}>
+                <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+
+                  {selectedItem ? (
+                    <>
+                      {/* Images in slot */}
+                      <View style={styles.propSection}>
+                        <Text style={styles.sectionLabel}>Images in Slot</Text>
+                        {selectedItem.images.map((img, idx) => (
+                          <View
+                            key={img.id}
+                            style={[styles.imgListRow, idx === selectedItem.currentImageIndex && styles.imgListRowActive]}
+                          >
+                            <Image
+                              source={{ uri: `${lut?.imageUrl || ''}${img.imageurl}` }}
+                              style={styles.imgListThumb}
+                              resizeMode="contain"
+                            />
+                            <Text style={styles.imgListId} numberOfLines={1}>#{img.imageId}</Text>
+                            {idx === selectedItem.currentImageIndex && (
+                              <View style={styles.activeDot} />
+                            )}
+                            {selectedItem.images.length > 1 && (
+                              <TouchableOpacity
+                                onPress={() => setItems(prev => prev.map(it => {
+                                  if (it.id !== selectedItem.id) return it;
+                                  const imgs = it.images.filter(im => im.id !== img.id);
+                                  return { ...it, images: imgs, currentImageIndex: Math.min(it.currentImageIndex, imgs.length - 1) };
+                                }))}
+                                hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 }}
+                              >
+                                <MinusCircle size={12} color={T.danger} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                        <TouchableOpacity
+                          style={styles.addSlotBtn}
+                          onPress={() => { setSelectingFor(selectedItem.id); setShowImageDrawer(true); }}
+                        >
+                          <Plus size={13} color={T.accent} />
+                          <Text style={styles.addSlotText}>Add image to slot</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Size / position */}
+                      <View style={styles.propSection}>
+                        <Text style={styles.sectionLabel}>Geometry</Text>
+                        <View style={styles.coordGrid}>
+                          {(['x', 'y', 'w', 'h'] as const).map(k => (
+                            <View key={k} style={styles.coordCell}>
+                              <Text style={styles.coordLabel}>{k.toUpperCase()}</Text>
+                              <Text style={styles.coordValue}>{selectedItem[k]}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        <View style={styles.qRow}>
+                          <TouchableOpacity style={styles.qBtn}
+                            onPress={() => updateItem(selectedItem.id, {
+                              w: Math.min(CANVAS_W - selectedItem.x, selectedItem.w + 120),
+                              h: Math.min(CANVAS_H - selectedItem.y, selectedItem.h + 68),
+                            })}>
+                            <Text style={styles.qBtnText}>+ Larger</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[styles.qBtn, styles.qBtnSecondary]}
+                            onPress={() => updateItem(selectedItem.id, {
+                              w: Math.max(MIN_W, selectedItem.w - 120),
+                              h: Math.max(MIN_H, selectedItem.h - 68),
+                            })}>
+                            <Text style={[styles.qBtnText, { color: T.textMid }]}>− Smaller</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Layer controls */}
+                      <View style={styles.propSection}>
+                        <Text style={styles.sectionLabel}>Layer Order</Text>
+                        <View style={styles.layerBtns}>
+                          <TouchableOpacity style={styles.layerBtn} onPress={() => bringToFront(selectedItem.id)}>
+                            <ArrowUpToLine size={13} color={T.accent} />
+                            <Text style={styles.layerBtnText}>To Front</Text>
+                          </TouchableOpacity>
+                  
+                          <TouchableOpacity style={[styles.layerBtn, styles.layerBtnSecondary]} onPress={() => sendToBack(selectedItem.id)}>
+                            <ArrowDownToLine size={13} color={T.textMid} />
+                            <Text style={[styles.layerBtnText, { color: T.textMid }]}>To Back</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Delete slot */}
+                      <TouchableOpacity style={styles.deleteSlotBtn} onPress={() => deleteItem(selectedItem.id)}>
+                        <Trash2 size={13} color={T.danger} />
+                        <Text style={styles.deleteSlotText}>Remove Slot</Text>
                       </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                    </>
+                  ) : (
+                    <View style={styles.nothingSelected}>
+                      <Layers size={26} color={T.textDim} />
+                      <Text style={styles.nothingText}>Select a slot{'\n'}to edit properties</Text>
+                    </View>
+                  )}
+
+                  {/* Layer list */}
+                  <View style={styles.layerListSection}>
+                    <Text style={styles.sectionLabel}>Layers ({items.length})</Text>
+                    {reversedItems.map((it, idx) => (
+                      <TouchableOpacity
+                        key={it.id}
+                        style={[styles.layerListRow, selectedId === it.id && styles.layerListRowActive]}
+                        onPress={() => setSelectedId(it.id)}
+                      >
+                        <Text style={styles.layerZBadge}>{it.zIndex}</Text>
+                        <ImageIcon size={11} color={selectedId === it.id ? T.accent : T.textDim} />
+                        <Text style={[styles.layerListText, selectedId === it.id && { color: T.accent }]} numberOfLines={1}>
+                          {it.images.length} image{it.images.length !== 1 ? 's' : ''}
+                        </Text>
+                        <TouchableOpacity onPress={() => deleteItem(it.id)} hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }} style={{ marginLeft: 'auto' }}>
+                          <Trash2 size={10} color={T.danger} />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
               </View>
             </View>
           )}
 
           {/* ── DEVICE PICKER MODAL ── */}
-          <Modal visible={showDevicePicker} transparent animationType="fade"
-            onRequestClose={() => setShowDevicePicker(false)}>
-            <Pressable style={s.overlay} onPress={() => setShowDevicePicker(false)}>
-              <Pressable style={s.modal}>
-                <View style={s.modalHeader}>
-                  <Tv size={20} color={C.primary} />
-                  <Text style={s.modalTitle}>Select TV Device(s)</Text>
+          <Modal visible={showDevicePicker} transparent animationType="fade" onRequestClose={() => setShowDevicePicker(false)}>
+            <Pressable style={styles.overlay} onPress={() => setShowDevicePicker(false)}>
+              <Pressable style={styles.modal}>
+                <View style={styles.modalHeader}>
+                  <Tv size={18} color={T.accent} />
+                  <Text style={styles.modalTitle}>Select Display(s)</Text>
                   <TouchableOpacity onPress={() => setShowDevicePicker(false)}>
-                    <X size={20} color={C.textLight} />
+                    <X size={18} color={T.textMid} />
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={{ maxHeight: 300 }}>
+                <ScrollView style={{ maxHeight: 280 }}>
                   {(lut?.deviceList ?? []).map(device => {
                     const active = selectedDevices.some(d => d.deviceId === device.deviceId);
                     return (
-                      <TouchableOpacity key={device.deviceId}
-                        style={[s.deviceRow, active && s.deviceRowActive]}
-                        onPress={() => toggleDevice(device)}>
-                        <View style={[s.deviceDot, active && { backgroundColor: C.success }]} />
+                      <TouchableOpacity
+                        key={device.deviceId}
+                        style={[styles.deviceRow, active && styles.deviceRowActive]}
+                        onPress={() => toggleDevice(device)}
+                      >
+                        <View style={[styles.deviceDot, active && { backgroundColor: T.success }]} />
                         <View style={{ flex: 1 }}>
-                          <Text style={s.deviceName}>{device.displayName}</Text>
-                          <Text style={s.deviceSub}>{device.deviceName} · {device.deviceId.slice(0, 8)}…</Text>
+                          <Text style={styles.deviceName}>{device.displayName}</Text>
+                          <Text style={styles.deviceSub}>{device.deviceId.slice(0, 12)}…</Text>
                         </View>
-                        {active && <CheckCircle size={18} color={C.success} />}
+                        {active && <CheckCircle size={16} color={T.success} />}
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
                 <TouchableOpacity
-                  style={[s.modalSendBtn, (!selectedDevices.length || sending) && { opacity: 0.5 }]}
+                  style={[styles.modalSendBtn, (!selectedDevices.length || sending) && { opacity: 0.4 }]}
                   onPress={handleSend}
-                  disabled={!selectedDevices.length || sending}>
+                  disabled={!selectedDevices.length || sending}
+                >
                   {sending
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <>
-                        <Send size={15} color="#fff" />
-                        <Text style={s.modalSendText}>
-                          Send to {selectedDevices.length || ''} {selectedDevices.length === 1 ? 'device' : 'devices'}
-                        </Text>
-                      </>}
+                    ? <ActivityIndicator size="small" color={T.white} />
+                    : <><Send size={14} color={T.white} /><Text style={styles.modalSendText}>Send to {selectedDevices.length || ''} {selectedDevices.length === 1 ? 'device' : 'devices'}</Text></>}
                 </TouchableOpacity>
               </Pressable>
             </Pressable>
@@ -711,50 +841,48 @@ useEffect(() => {
             animationType="slide"
             onRequestClose={() => { setShowImageDrawer(false); setSelectingFor(null); }}
           >
-            <View style={s.drawer}>
-              <View style={s.drawerHandle} />
-              <View style={s.drawerHeader}>
-                <Text style={s.modalTitle}>
-                  {selectingFor ? 'Add Image to Slot' : 'Image Library'}
-                </Text>
+            <View style={styles.drawer}>
+              <View style={styles.drawerHandle} />
+              <View style={styles.drawerHeader}>
+                <Text style={styles.modalTitle}>{selectingFor ? 'Add to Slot' : 'Image Library'}</Text>
                 <TouchableOpacity onPress={() => { setShowImageDrawer(false); setSelectingFor(null); }}>
-                  <X size={20} color={C.textLight} />
+                  <X size={18} color={T.textMid} />
                 </TouchableOpacity>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                <View style={styles.drawerGrid}>
                   {(lut?.imageList ?? []).map(img => (
                     <TouchableOpacity
                       key={img.imageId}
-                      style={s.drawerImgCell}
-                      onPress={() => addImageToCanvas(img, selectingFor ?? undefined)}
+                      style={styles.drawerCell}
+                      onPress={() => addImageToCanvas(img, selectingFor)}
                       activeOpacity={0.7}
                     >
                       <Image
                         source={{ uri: `${lut?.imageUrl || ''}${img.imageurl || img.imageName}` }}
-                        style={s.drawerImgThumb}
+                        style={styles.drawerThumb}
                         resizeMode="contain"
                       />
+                      <Text style={styles.drawerThumbId} numberOfLines={1}>#{img.imageId}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                {loadingMore && <ActivityIndicator color={C.primary} style={{ marginVertical: 12 }} />}
+                {loadingMore && <ActivityIndicator color={T.accent} style={{ marginVertical: 12 }} />}
               </ScrollView>
             </View>
           </Modal>
 
-          {/* ── SUCCESS MODAL ── */}
-          <Modal visible={successModal} transparent animationType="fade"
-            onRequestClose={() => setSuccessModal(false)}>
-            <Pressable style={s.overlay} onPress={() => setSuccessModal(false)}>
-              <View style={s.successBox}>
-                <CheckCircle size={48} color={C.success} />
-                <Text style={s.successTitle}>Sent!</Text>
-                <Text style={s.successSub}>
-                  Content sent to {selectedDevices.length} device{selectedDevices.length !== 1 ? 's' : ''}
+          {/* ── SUCCESS ── */}
+          <Modal visible={successModal} transparent animationType="fade" onRequestClose={() => setSuccessModal(false)}>
+            <Pressable style={styles.overlay} onPress={() => setSuccessModal(false)}>
+              <View style={styles.successBox}>
+                <CheckCircle size={44} color={T.success} />
+                <Text style={styles.successTitle}>Sent!</Text>
+                <Text style={styles.successSub}>
+                  Layout delivered to {selectedDevices.length} device{selectedDevices.length !== 1 ? 's' : ''}.
                 </Text>
-                <TouchableOpacity style={s.successBtn} onPress={() => setSuccessModal(false)}>
-                  <Text style={s.successBtnText}>Done</Text>
+                <TouchableOpacity style={styles.successBtn} onPress={() => setSuccessModal(false)}>
+                  <Text style={styles.successBtnText}>Done</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
@@ -767,117 +895,233 @@ useEffect(() => {
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 13, color: C.textLight, marginTop: 12 },
-
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: C.topBar,
-  },
-  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  topBarTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
-  sendBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#ffffff25', borderRadius: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderWidth: 1, borderColor: '#ffffff50',
-  },
-  sendBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: T.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 13, color: T.textMid },
   body: { flex: 1, flexDirection: 'row' },
 
-  sidebar: { width: 240, backgroundColor: C.surface, borderRightWidth: 1, borderRightColor: C.border, padding: 12 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', color: C.textLight, letterSpacing: 0.8, marginBottom: 10, textTransform: 'uppercase' },
-  imgRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  imgThumb: { width: 60, height: 44, borderRadius: 4, backgroundColor: C.surfaceAlt },
-  imgName: { fontSize: 11, color: C.text, fontWeight: '500' },
-  imgId: { fontSize: 10, color: C.textLight, marginTop: 2 },
-  gridToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, marginTop: 8, borderTopWidth: 1, borderTopColor: C.border },
-  gridToggleText: { fontSize: 12, color: C.textLight },
-  endText: { textAlign: 'center', paddingVertical: 12, fontSize: 11, color: C.textLight },
-
-  canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', padding: 16 },
-  infoBar: { flexDirection: 'row', gap: 16, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' },
-  infoText: { fontSize: 11, color: C.textLight, fontWeight: '500' },
-
-  canvas: { backgroundColor: '#F9FAFB', borderWidth: 1.5, borderColor: C.border, borderRadius: 4, overflow: 'visible', position: 'relative' },
-  gridLine: { position: 'absolute', backgroundColor: '#E2E8F040' },
-  emptyCanvas: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: '700', color: C.border, marginTop: 8 },
-  emptySub: { fontSize: 12, color: C.border },
-
-  canvasItemOuter: {
-    position: 'absolute',
+  // Top bar
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border,
   },
-  canvasItem: {
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  canvasItemSelected: { borderWidth: 2, borderColor: C.primary },
-
-  imgCounter: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
-  imgCounterText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  addImgBtn: {
-    position: 'absolute', bottom: 8, right: 8,
-    backgroundColor: C.primary, borderRadius: 12,
-    width: 28, height: 28,
+  topBarLeft:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarRight:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  topBarTitle:   { fontSize: 15, fontWeight: '700', color: T.text },
+  topBarDivider: { width: 1, height: 14, backgroundColor: T.border },
+  topBarMeta:    { fontSize: 12, color: T.textMid },
+  gridBtn: {
+    width: 32, height: 32, borderRadius: 6,
+    backgroundColor: T.surfaceRaised, borderWidth: 1, borderColor: T.border,
     alignItems: 'center', justifyContent: 'center',
-    elevation: 8, zIndex: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
   },
-  rHandle: { position: 'absolute', width: 14, height: 14, backgroundColor: C.surface, borderWidth: 2.5, borderColor: C.primary, borderRadius: 3, zIndex: 10 },
-  deleteFloat: { position: 'absolute', top: -26, right: -2, backgroundColor: '#7f1d1d', borderRadius: 6, padding: 5, zIndex: 20 },
-  cycleControls: { position: 'absolute', top: '50%', left: -16, right: -16, flexDirection: 'row', justifyContent: 'space-between', marginTop: -15 },
-  cycleBtn: { backgroundColor: C.primary, borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  cycleBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  removeImgBtn: { position: 'absolute', top: -12, left: -12, backgroundColor: C.surface, borderRadius: 10, padding: 2, elevation: 3 },
+  sendBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: T.accent, borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+  },
+  sendBtnText: { color: T.white, fontWeight: '700', fontSize: 13 },
 
-  panel: { width: 230, backgroundColor: C.surface, borderLeftWidth: 1, borderLeftColor: C.border, padding: 12 },
-  propGroup: { marginBottom: 14 },
-  propLabel: { fontSize: 10, fontWeight: '700', color: C.textLight, letterSpacing: 0.8, marginBottom: 5, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', gap: 8 },
-  coordBox: { flex: 1, backgroundColor: C.surfaceAlt, borderRadius: 6, padding: 8, alignItems: 'center' },
-  coordLbl: { fontSize: 10, color: C.textLight, fontWeight: '700' },
-  coordVal: { fontSize: 13, color: C.primary, fontWeight: '700' },
-  qBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderColor: C.primary, borderRadius: 6, paddingVertical: 8 },
-  qBtnText: { fontSize: 11, color: C.primary, fontWeight: '600' },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.dangerBg, borderRadius: 6, padding: 10, marginTop: 4 },
-  deleteBtnText: { fontSize: 12, color: C.danger, fontWeight: '600' },
-  nothingSelected: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  nothingText: { fontSize: 12, color: C.border, textAlign: 'center', lineHeight: 18 },
-  layerList: { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10, marginTop: 8 },
-  layerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 6, marginBottom: 2 },
-  layerText: { fontSize: 11, color: C.textLight, fontWeight: '500', flex: 1 },
-  imgListItem: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 4, marginBottom: 2 },
-  imgListThumb: { width: 24, height: 18, borderRadius: 2, backgroundColor: C.surfaceAlt },
-  imgListName: { flex: 1, fontSize: 10, color: C.textLight },
-  addToSlotBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.primary, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, marginTop: 4, borderStyle: 'dashed' },
-  addToSlotText: { fontSize: 11, color: C.primary, fontWeight: '600' },
+  // Sidebar
+  sidebar: {
+    width: 220, backgroundColor: T.surface,
+    borderRightWidth: 1, borderRightColor: T.border,
+    padding: 12,
+  },
+  sectionLabel: {
+    fontSize: 10, fontWeight: '700', color: T.textDim,
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10,
+  },
+  libRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: T.borderLight,
+  },
+  libThumb: { width: 56, height: 40, borderRadius: 4, backgroundColor: T.surfaceRaised },
+  libMeta:  { flex: 1, marginLeft: 10 },
+  libName:  { fontSize: 11, color: T.text, fontWeight: '500', lineHeight: 15 },
+  libId:    { fontSize: 10, color: T.textDim, marginTop: 2 },
+  endText:  { textAlign: 'center', paddingVertical: 12, fontSize: 10, color: T.textDim },
 
-  overlay: { flex: 1, backgroundColor: '#0F172A90', justifyContent: 'center', alignItems: 'center' },
-  modal: { width: '90%', maxWidth: 420, backgroundColor: C.surface, borderRadius: 16, padding: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20 },
+  // Canvas
+  canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', padding: 16, paddingTop: 20 },
+  canvas: {
+    backgroundColor: '#f4f7ff',
+    borderWidth: 1, borderColor: T.border,
+    borderRadius: 4, overflow: 'visible', position: 'relative',
+  },
+  gridLine: { position: 'absolute', backgroundColor: 'rgb(240, 241, 255)' },
+  emptyCanvas: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: '#6b78b1', marginTop: 8 },
+  emptySub:   { fontSize: 12, color:'#6b78b1'},
+  infoBar: { flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' },
+  infoChip: {
+    fontSize: 11, color: T.textMid, fontWeight: '600',
+    backgroundColor: T.surfaceRaised, paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 4, borderWidth: 1, borderColor: T.border,
+  },
+
+  // Canvas item
+  itemOuter: { position: 'absolute' },
+  itemInner: {
+    flex: 1, borderRadius: 3, overflow: 'hidden',
+    backgroundColor: '#ecf5ff',
+    borderWidth: 1, borderColor: T.border,
+  },
+  itemSelected: { borderWidth: 2, borderColor: T.selectedBorder },
+  emptySlot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  emptySlotText: { fontSize: 9, color: T.textDim },
+  counterBadge: {
+    position: 'absolute', top: 5, right: 5,
+    backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 6,
+    paddingHorizontal: 5, paddingVertical: 1,
+  },
+  counterText: { color: T.white, fontSize: 8, fontWeight: '700' },
+  quickAdd: {
+    position: 'absolute', bottom: 6, right: 6,
+    backgroundColor: T.accent, borderRadius: 10,
+    width: 20, height: 20, alignItems: 'center', justifyContent: 'center',
+    elevation: 5, zIndex: 10,
+  },
+  // Resize handles
+  handleCorner: {
+    position: 'absolute', width: 12, height: 12,
+    backgroundColor: T.handleBg, borderWidth: 2, borderColor: T.handle,
+    borderRadius: 2, zIndex: 20,
+  },
+  handleEdge: {
+    position: 'absolute', width: 16, height: 8,
+    backgroundColor: T.handle, borderRadius: 2, zIndex: 20, opacity: 0.8,
+  },
+  // Floating action bar (selected item)
+  floatBar: {
+    position: 'absolute', top: -32, left: 0,
+    flexDirection: 'row', gap: 3, zIndex: 30,
+  },
+  floatBtn: {
+    backgroundColor: T.surfaceRaised, borderWidth: 1, borderColor: T.border,
+    borderRadius: 5, paddingHorizontal: 7, paddingVertical: 5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  floatBtnDanger: { borderColor: T.danger + '60' },
+
+  // Right panel
+  panel: {
+    width: 220, backgroundColor: T.surface,
+    borderLeftWidth: 1, borderLeftColor: T.border,
+    padding: 12,
+  },
+  propSection: { marginBottom: 16 },
+  imgListRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    padding: 5, borderRadius: 5, marginBottom: 2,
+  },
+  imgListRowActive: { backgroundColor: T.accentGhost },
+  imgListThumb: { width: 28, height: 20, borderRadius: 2, backgroundColor: T.surfaceRaised },
+  imgListId:    { flex: 1, fontSize: 10, color: T.textMid },
+  activeDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent,
+  },
+  addSlotBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: T.accent + '80', borderRadius: 6,
+    borderStyle: 'dashed', paddingVertical: 7, paddingHorizontal: 10, marginTop: 4,
+  },
+  addSlotText: { fontSize: 11, color: T.accent, fontWeight: '600' },
+
+  coordGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  coordCell: {
+    flex: 1, minWidth: 44, backgroundColor: T.surfaceRaised,
+    borderRadius: 5, paddingVertical: 6, alignItems: 'center',
+    borderWidth: 1, borderColor: T.border,
+  },
+  coordLabel: { fontSize: 9, color: T.textDim, fontWeight: '700', textTransform: 'uppercase' },
+  coordValue: { fontSize: 12, color: T.accent, fontWeight: '700', marginTop: 1 },
+  qRow: { flexDirection: 'row', gap: 6 },
+  qBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: T.accent, borderRadius: 6, paddingVertical: 7,
+  },
+  qBtnSecondary: { borderColor: T.border },
+  qBtnText: { fontSize: 11, color: T.accent, fontWeight: '600' },
+
+  layerBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  layerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderColor: T.accent, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 6, flex: 1,
+  },
+  layerBtnSecondary: { borderColor: T.border },
+  layerBtnText: { fontSize: 10, color: T.accent, fontWeight: '600' },
+
+  deleteSlotBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: T.dangerBg, borderRadius: 6,
+    paddingVertical: 9, paddingHorizontal: 12, marginBottom: 16,
+  },
+  deleteSlotText: { fontSize: 12, color: T.danger, fontWeight: '600' },
+
+  nothingSelected: { alignItems: 'center', paddingVertical: 32, gap: 8 },
+  nothingText: { fontSize: 12, color: T.textDim, textAlign: 'center', lineHeight: 18 },
+
+  layerListSection: { borderTopWidth: 1, borderTopColor: T.border, paddingTop: 12, marginTop: 4 },
+  layerListRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 6, paddingHorizontal: 8,
+    borderRadius: 5, marginBottom: 2,
+  },
+  layerListRowActive: { backgroundColor: T.accentGhost },
+  layerZBadge: {
+    fontSize: 9, fontWeight: '700', color: T.textDim,
+    backgroundColor: T.surfaceRaised, paddingHorizontal: 4, paddingVertical: 1,
+    borderRadius: 3, minWidth: 18, textAlign: 'center',
+  },
+  layerListText: { fontSize: 11, color: T.textMid, flex: 1, fontWeight: '500' },
+
+  // Modals
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  modal: {
+    width: '88%', maxWidth: 400, backgroundColor: T.surface,
+    borderRadius: 14, padding: 20, borderWidth: 1, borderColor: T.border,
+  },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  modalTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: C.text },
-  deviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 10, borderRadius: 8, marginBottom: 4, borderWidth: 1, borderColor: C.border },
-  deviceRowActive: { borderColor: C.primary, backgroundColor: C.primaryGhost },
-  deviceDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.border },
-  deviceName: { fontSize: 14, fontWeight: '600', color: C.text },
-  deviceSub: { fontSize: 11, color: C.textLight, marginTop: 2 },
-  modalSendBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.primary, borderRadius: 10, paddingVertical: 12, marginTop: 16 },
-  modalSendText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  modalTitle:  { flex: 1, fontSize: 15, fontWeight: '700', color: T.text },
+  deviceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, paddingHorizontal: 10,
+    borderRadius: 7, marginBottom: 4,
+    borderWidth: 1, borderColor: T.border,
+  },
+  deviceRowActive: { borderColor: T.accent, backgroundColor: T.accentGhost },
+  deviceDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: T.border },
+  deviceName: { fontSize: 13, fontWeight: '600', color: T.text },
+  deviceSub:  { fontSize: 10, color: T.textMid, marginTop: 1 },
+  modalSendBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: T.accent, borderRadius: 9, paddingVertical: 12, marginTop: 14,
+  },
+  modalSendText: { color: T.white, fontWeight: '700', fontSize: 14 },
 
-  drawer: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '75%', backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 },
-  drawerHandle: { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+  drawer: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '78%',
+    backgroundColor: T.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18,
+    padding: 16, borderTopWidth: 1, borderColor: T.border,
+  },
+  drawerHandle: { width: 34, height: 4, backgroundColor: T.border, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
   drawerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  drawerImgCell: { width: '33.333%', aspectRatio: 1, padding: 4 },
-  drawerImgThumb: { flex: 1, borderRadius: 8, backgroundColor: C.surfaceAlt },
+  drawerGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  drawerCell: { width: '33.333%', padding: 5 },
+  drawerThumb: { width: '100%', aspectRatio: 1.6, borderRadius: 6, backgroundColor: T.surfaceRaised },
+  drawerThumbId: { fontSize: 9, color: T.textDim, marginTop: 2, textAlign: 'center' },
 
-  successBox: { backgroundColor: C.surface, borderRadius: 20, padding: 32, alignItems: 'center', gap: 12, maxWidth: 300, width: '90%' },
-  successTitle: { fontSize: 22, fontWeight: '800', color: C.text },
-  successSub: { fontSize: 14, color: C.textLight, textAlign: 'center', lineHeight: 20 },
-  successBtn: { backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 32, paddingVertical: 12, marginTop: 8 },
-  successBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  successBox: {
+    backgroundColor: T.surface, borderRadius: 18, padding: 32,
+    alignItems: 'center', gap: 10, maxWidth: 290, width: '90%',
+    borderWidth: 1, borderColor: T.border,
+  },
+  successTitle:   { fontSize: 22, fontWeight: '800', color: T.text },
+  successSub:     { fontSize: 13, color: T.textMid, textAlign: 'center', lineHeight: 20 },
+  successBtn:     { backgroundColor: T.accent, borderRadius: 9, paddingHorizontal: 32, paddingVertical: 11, marginTop: 6 },
+  successBtnText: { color: T.white, fontWeight: '700', fontSize: 14 },
 });

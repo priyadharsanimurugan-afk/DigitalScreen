@@ -51,35 +51,36 @@ export const useImages = () => {
   }, [handleError]);
 
   // ── Upload Image with Auto-Refresh ────────────────────────────────────────
-  const upload = useCallback(async (
-    file: any,
-    imageName: string
-  ): Promise<ImageItem | null> => {
-    try {
-      setLoading(true);
-      const res = await uploadImage(file, imageName);
-      
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Image uploaded successfully',
-        visibilityTime: 2000,
-      });
-      
-      // 🔄 Wait a moment for server to process, then refresh the entire list
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Fetch fresh data from server
-      await fetchImages();
-      
-      return res;
-    } catch (error) {
-      handleError(error);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError, fetchImages]);
+const upload = useCallback(async (
+  file: any,
+  imageName: string
+): Promise<ImageItem | null> => {
+  try {
+    setLoading(true);
+
+    // Wait until backend fully completes upload
+    const res = await uploadImage(file, imageName);
+
+    Toast.show({
+      type: "success",
+      text1: "Success",
+      text2: "Image uploaded successfully",
+      visibilityTime: 2000,
+    });
+
+    // No fixed timeout
+    // Immediately fetch latest server data after upload response completes
+    await fetchImages();
+
+    return res;
+  } catch (error) {
+    handleError(error);
+    return null;
+  } finally {
+    setLoading(false);
+  }
+}, [handleError, fetchImages]);
+
 
   // ── Delete Image ──────────────────────────────────────────────────────────
   const removeImage = useCallback(async (id: number): Promise<boolean> => {
