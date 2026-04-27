@@ -70,7 +70,7 @@ useEffect(() => {
     if (role === "admin") {
       router.replace("/dashboard");
     } else {
-      router.replace("/(tv)/display");
+      router.replace("/(tv)/displayScreen");
     }
     return;
   }
@@ -81,7 +81,7 @@ useEffect(() => {
   }
 
   if (role !== "admin" && inDashboard) {
-    router.replace("/(tv)/display");
+    router.replace("/(tv)/displayScreen");
   }
 
 }, [isAuthenticated, role, segments, isReady]);
@@ -96,6 +96,9 @@ useEffect(() => {
         <Stack.Screen name="dashboard" />
         <Stack.Screen name="sendtv" />
         <Stack.Screen name="privacyPolicy" />
+        <Stack.Screen name="displayScreen" />
+        <Stack.Screen name="layouts" />
+
 
 
         <Stack.Screen name="(tv)" />

@@ -1,12 +1,15 @@
 // hooks/useContent.ts
+
 import { useState, useEffect } from "react";
 import {
   getDeviceDisplay,
+  getDeviceCanvas, // ✅ added
   stopContent,
   DeviceDisplay,
+  DeviceCanvasResponse, // ✅ import from service
 } from "@/services/content";
 
-// ✅ Add this type
+// ✅ Response type for /content/device-display
 export type DeviceDisplayResponse = {
   message: string;
   data: DeviceDisplay | null;
@@ -15,18 +18,21 @@ export type DeviceDisplayResponse = {
 export const useContent = () => {
   const [loading, setLoading] = useState(false);
 
-  // ✅ FIXED TYPE
+  // ✅ normal content display
   const [deviceDisplay, setDeviceDisplay] =
     useState<DeviceDisplayResponse | null>(null);
+
+  // ✅ canvas display
+  const [deviceCanvas, setDeviceCanvas] =
+    useState<DeviceCanvasResponse | null>(null);
 
   // ─── Fetch Device Display ─────────────────────────────
   const fetchDeviceDisplay = async (): Promise<DeviceDisplayResponse | null> => {
     try {
       setLoading(true);
 
-      const res = await getDeviceDisplay(); // API call
+      const res = await getDeviceDisplay();
 
-      // ✅ Ensure correct shape
       const response: DeviceDisplayResponse = {
         message: res?.message ?? "success",
         data: res?.data ?? null,
@@ -34,11 +40,9 @@ export const useContent = () => {
 
       setDeviceDisplay(response);
       return response;
-
     } catch (error) {
       console.error("Failed to fetch device display:", error);
 
-      // ✅ Proper fallback
       const fallback: DeviceDisplayResponse = {
         message: "error",
         data: null,
@@ -46,7 +50,36 @@ export const useContent = () => {
 
       setDeviceDisplay(fallback);
       return fallback;
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // ─── Fetch Device Canvas ─────────────────────────────
+  const fetchDeviceCanvas = async (): Promise<DeviceCanvasResponse | null> => {
+    try {
+      setLoading(true);
+
+      // ✅ use service function instead of fetch()
+      const res = await getDeviceCanvas();
+
+      const response: DeviceCanvasResponse = {
+        message: res?.message ?? "success",
+        data: res?.data ?? null,
+      };
+
+      setDeviceCanvas(response);
+      return response;
+    } catch (error) {
+      console.error("Failed to fetch device canvas:", error);
+
+      const fallback: DeviceCanvasResponse = {
+        message: "error",
+        data: null,
+      };
+
+      setDeviceCanvas(fallback);
+      return fallback;
     } finally {
       setLoading(false);
     }
@@ -69,11 +102,9 @@ export const useContent = () => {
 
       console.log("❌ Failed to stop content");
       return { success: false };
-
     } catch (error) {
       console.error("Stop content error:", error);
       return { success: false };
-
     } finally {
       setLoading(false);
     }
@@ -82,12 +113,20 @@ export const useContent = () => {
   // ─── Initial Load ────────────────────────────────────
   useEffect(() => {
     fetchDeviceDisplay();
+    fetchDeviceCanvas();
   }, []);
 
   return {
     loading,
-    deviceDisplay,          // ✅ NOW HAS message + data
+
+    // normal display
+    deviceDisplay,
     fetchDeviceDisplay,
+
+    // canvas display
+    deviceCanvas,
+    fetchDeviceCanvas,
+
     stopCurrentContent,
   };
 };

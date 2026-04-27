@@ -44,7 +44,7 @@ export default function BottomTabs() {
       label: "Send To Tv",
       icon: "send-outline" as const,
       activeIcon: "send" as const,
-      route: "/sendtv",
+      route: "/mobileLayout",
     },
     {
       id: "devices",

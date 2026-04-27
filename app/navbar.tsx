@@ -54,9 +54,10 @@ export default function Navbar({ showBottomTabs = false }: NavbarProps) {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', route: '/dashboard' },
-    { id: 'sendtv', label: 'Send to TV', icon: 'tv-outline', activeIcon: 'tv', route: '/sendtv' },
+    { id: 'sendtv', label: 'Send to TV', icon: 'tv-outline', activeIcon: 'tv', route: '/layouts' },
     { id: 'devices', label: 'Devices', icon: 'hardware-chip-outline', activeIcon: 'hardware-chip', route: '/device' },
     { id: 'media', label: 'Media', icon: 'images-outline', activeIcon: 'images', route: '/media' },
+
   ];
 
   const getUserInitials = () => 'AD';

@@ -59,6 +59,7 @@ export interface ApiResponse {
 }
 
 export interface LiveDisplay {
+  id: number;
   images: any;
   contentId: number;
   deviceId: string;
@@ -115,10 +116,10 @@ export const getDeviceDisplay = async (): Promise<DeviceDisplay> => {
   return res.data;
 };
 
-export const getLiveDisplay = async (): Promise<LiveDisplay[]> => {
-  const res = await api.get(`/content/live-display`);
-  return res.data;
-};
+// export const getLiveDisplay = async (): Promise<LiveDisplay[]> => {
+//   const res = await api.get(`/content/live-display`);
+//   return res.data;
+// };
 
 export const stopContent = async (
   deviceId: string,
@@ -129,4 +130,128 @@ export const stopContent = async (
     success: true,
     message: res.data?.message || "Content stopped successfully",
   };
+};
+export const stopContentCanvas = async (
+  deviceId: string,
+  contentId: number
+): Promise<ApiResponse> => {
+  const res = await api.post("/content/stop-canvas", { deviceId, contentId });
+  return {
+    success: true,
+    message: res.data?.message || "Content stopped successfully",
+  };
+};
+
+
+// services/content.ts
+// ADD ONLY THIS — do not disturb existing code
+
+// ─── SEND CANVAS TYPES ────────────────────────────────────────────────────────
+
+export interface SendCanvasItem {
+  slotIndex: number;
+  imageId: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pinned: boolean;
+  zIndex: number;
+  resizeMode: string;
+}
+
+export interface SendCanvasRequest {
+  title: string;
+  description: string;
+  deviceId: string;
+  screenWidth: number;
+  screenHeight: number;
+  screenLayout: string;
+  items: SendCanvasItem[];
+}
+
+
+// ─── SEND CANVAS API ──────────────────────────────────────────────────────────
+
+export const sendCanvasContent = async (
+  data: SendCanvasRequest
+): Promise<ApiResponse> => {
+  const response = await api.post("/content/send-canvas", data);
+
+  return {
+    success: true,
+    message: response.data?.message || "Canvas content sent successfully",
+    contentId: response.data?.contentId,
+  };
+};
+// services/content.ts
+// ADD ONLY THIS — Fetch Device Canvas API
+
+// ─── DEVICE CANVAS TYPES ──────────────────────────────────────────────────────
+
+export interface DeviceCanvasItem {
+  slotIndex: number;
+  imageId: number;
+  imageurl: string;
+  mimeType: string;
+  deviceId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pinned: boolean;
+  zIndex: number;
+  resizeMode: string;
+}
+
+export interface DeviceCanvasData {
+  id: number;
+  title: string;
+  description: string;
+  deviceId: string;
+  screenWidth: number;
+  screenHeight: number;
+  screenLayout: string;
+  items: DeviceCanvasItem[];
+}
+
+export interface DeviceCanvasResponse {
+  message: string;
+  data: DeviceCanvasData | null;
+}
+
+
+// ─── GET DEVICE CANVAS API ────────────────────────────────────────────────────
+
+export const getDeviceCanvas = async (): Promise<DeviceCanvasResponse> => {
+  try {
+    const res = await api.get<DeviceCanvasResponse>(
+      `/content/device-canvas`
+    );
+
+    return {
+      message: res.data?.message || "success",
+      data: res.data?.data || null,
+    };
+  } catch (error) {
+    console.error("Failed to fetch device canvas:", error);
+
+    return {
+      message: "error",
+      data: null,
+    };
+  }
+};
+
+export const getDeviceCanvasAdmin = async (): Promise<any[]> => {
+  try {
+    const res = await api.get(`/content/live-display-canvas`);
+
+  
+
+    return Array.isArray(res.data) ? res.data : [];
+  } catch (error) {
+    console.error("Failed to fetch device canvas:", error);
+    return [];
+  }
 };
