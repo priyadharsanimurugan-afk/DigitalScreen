@@ -1,13 +1,11 @@
 // AdminLayoutStudio.tsx — Production-grade rewrite
-// Fixes: 4-side resize, bounds clamping, zIndex overlap control,
-//        multi-image slots, backend payload parity, clean UI
 
 import React, {
   useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Image, StyleSheet,
-  useWindowDimensions, Alert, Modal, ActivityIndicator, Pressable,
+  useWindowDimensions, Modal, ActivityIndicator, Pressable,
 } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, runOnJS, withSpring,
@@ -27,6 +25,8 @@ import {
 } from '@/services/content';
 import ResponsiveLayout from '@/components/responsiveLayout';
 import { useLocalSearchParams } from 'expo-router';
+import Toast from "react-native-toast-message";
+import { toastConfig } from "@/constants/toastConfig"; 
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const T = {
@@ -379,7 +379,8 @@ export default function AdminLayoutStudio() {
       setPage(pageNum);
       setHasMore(result.pagination ? pageNum < result.pagination.totalPages : false);
     } catch {
-      Alert.alert('Error', 'Failed to load image library.');
+
+      Toast.show({ type: "error", text1: "Error", text2: 'Failed to load image library.', visibilityTime: 2000 });
     } finally {
       setLoadingMore(false);
       if (reset) setLoading(false);
@@ -481,51 +482,116 @@ export default function AdminLayoutStudio() {
   };
 
   // ── Send to TV ──────────────────────────────────────────────────────────────
-  const handleSend = async () => {
-    if (!selectedDevices.length) { Alert.alert('No Device', 'Please select at least one TV.'); return; }
-    if (!items.length) { Alert.alert('No Content', 'Add at least one image slot.'); return; }
-    const boundsError = validateBounds();
-    if (boundsError) { Alert.alert('Layout Error', boundsError); return; }
+const handleSend = async () => {
+  if (!selectedDevices.length) {
+    Toast.show({
+      type: "error",
+      text1: "No Device",
+      text2: "Please select at least one TV.",
+      position: "top",
+    });
+    return;
+  }
 
-    setSending(true);
-    try {
-      // Normalize zIndex so it's sequential from 1
-      const sorted = [...items].sort((a, b) => a.zIndex - b.zIndex);
-      const sendItems = sorted.flatMap((item, slotIdx) =>
-        item.images.map((img, imgIdx) => ({
-          slotIndex: slotIdx,
-          imageIndex: imgIdx,
-          imageId: img.imageId,
-          imageurl: img.imageurl,
-          x: item.x,
-          y: item.y,
-          width: item.w,
-          height: item.h,
-          zIndex: slotIdx + 1,        // normalized
-          pinned: true,
-          resizeMode: 'contain',
-        }))
-      );
+  if (!items.length) {
+    Toast.show({
+      type: "error",
+      text1: "No Content",
+      text2: "Add at least one image slot.",
+      position: "top",
+    });
+    return;
+  }
 
-      await Promise.all(selectedDevices.map(device =>
-        sendCanvasContent({
-          title: `Layout_${Date.now()}`,
-          description: `${items.length} slot(s), ${sendItems.length} image(s)`,
-          deviceId: device.deviceId,
-          screenWidth: CANVAS_W,
-          screenHeight: CANVAS_H,
-          screenLayout: `${items.length}`,
-          items: sendItems,
-        })
-      ));
-      setShowDevicePicker(false);
-      setSuccessModal(true);
-    } catch {
-      Alert.alert('Error', 'Failed to send content to TV.');
-    } finally {
-      setSending(false);
-    }
-  };
+  const boundsError = validateBounds();
+  if (boundsError) {
+    Toast.show({
+      type: "error",
+      text1: "Layout Error",
+      text2: boundsError,
+      position: "top",
+    });
+    return;
+  }
+
+  setSending(true);
+
+  try {
+    // Normalize zIndex
+    const sorted = [...items].sort(
+      (a, b) => a.zIndex - b.zIndex
+    );
+
+    const sendItems = sorted.flatMap((item, slotIdx) =>
+      item.images.map((img, imgIdx) => ({
+        slotIndex: slotIdx,
+        imageIndex: imgIdx,
+        imageId: img.imageId,
+        imageurl: img.imageurl,
+        x: item.x,
+        y: item.y,
+        width: item.w,
+        height: item.h,
+        zIndex: slotIdx + 1,
+        pinned: true,
+        resizeMode: "contain",
+      }))
+    );
+
+    const payloads = selectedDevices.map((device) => ({
+      title: `Layout_${Date.now()}`,
+      description: `${items.length} slot(s), ${sendItems.length} image(s)`,
+      deviceId: device.deviceId,
+      screenWidth: CANVAS_W,
+      screenHeight: CANVAS_H,
+      screenLayout: `${items.length}`,
+      items: sendItems,
+    }));
+
+    console.log("========== SEND PAYLOAD ==========");
+    console.log(JSON.stringify(payloads, null, 2));
+
+    const responses = await Promise.all(
+      payloads.map(async (payload) => {
+        const response = await sendCanvasContent(payload);
+
+        console.log("========== BACKEND RESPONSE ==========");
+        console.log(JSON.stringify(response, null, 2));
+
+        return response;
+      })
+    );
+
+    console.log("========== ALL RESPONSES ==========");
+    console.log(JSON.stringify(responses, null, 2));
+
+    setShowDevicePicker(false);
+    setSuccessModal(true);
+
+    Toast.show({
+      type: "success",
+      text1: "Success",
+      text2: `Layout sent to ${selectedDevices.length} device${
+        selectedDevices.length > 1 ? "s" : ""
+      } successfully`,
+      position: "top",
+    });
+  } catch (error: any) {
+    console.log("========== SEND ERROR ==========");
+    console.log(error);
+
+    Toast.show({
+      type: "error",
+      text1: "Send Failed",
+      text2:
+        error?.message || "Failed to send content to TV.",
+      position: "top",
+    });
+  } finally {
+    setSending(false);
+  }
+};
+
 
   const selectedItem  = items.find(i => i.id === selectedId) ?? null;
   const sortedItems   = useMemo(() => [...items].sort((a, b) => a.zIndex - b.zIndex), [items]);
