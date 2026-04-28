@@ -57,6 +57,11 @@ export const getDevices = async (): Promise<Device[]> => {
   return res.data.map(mapDevice);
 };
 
+export const getCanvasDevices = async (): Promise<Device[]> => {
+  const res = await api.get("/devices/all-canvas");
+  return res.data.map(mapDevice);
+};
+
 // 3️⃣ Update Device
 export const updateDevice = async (
   deviceId: string,
@@ -78,6 +83,11 @@ export const getLiveDevices = async (): Promise<Device[]> => {
   return res.data.map(mapDevice);
 };
 
+export const getLiveCanvasDevices = async (): Promise<Device[]> => {
+  const res = await api.get("/devices/live-canvas");
+  return res.data.map(mapDevice);
+};
+
 // 6️⃣ Get Status Summary
 export const getDeviceStatusSummary = async (): Promise<DeviceStatusSummary> => {
   const res = await api.get("/devices/status-summary");
@@ -88,4 +98,19 @@ export const getDeviceStatusSummary = async (): Promise<DeviceStatusSummary> => 
     onlineCount: d.onlineCount ?? d.online_count ?? 0,
     offlineCount: d.offlineCount ?? d.offline_count ?? 0,
   };
+
+  
+};
+
+export const getDeviceStatusSummaryCanvas = async (): Promise<DeviceStatusSummary> => {
+  const res = await api.get("/devices/canvas-status-summary");
+  const d = res.data;
+  return {
+    totalDevices: d.totalDevices ?? d.total_devices ?? 0,
+    liveCount: d.liveCount ?? d.live_count ?? 0,
+    onlineCount: d.onlineCount ?? d.online_count ?? 0,
+    offlineCount: d.offlineCount ?? d.offline_count ?? 0,
+  };
+
+  
 };

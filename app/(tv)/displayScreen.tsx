@@ -21,7 +21,7 @@ import { getLocation, fetchWeather } from '@/utils/weather';
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const POLL_INTERVAL      = 8_000;
 const SLOT_CYCLE_INTERVAL = 5_000;
-const HEADER_H           = 56;
+const HEADER_H           = 50;
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface WeatherData { temp: number; icon: string; condition: string; }
@@ -104,22 +104,35 @@ const Header: React.FC<{ onPress: () => void }> = ({ onPress }) => {
   const isMobile = width < 768;
   const lastTap = useRef(0);
 
-  const logout = async () => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      try {
-        const rt = await getRefreshToken();
-        if (rt) await logoutApi(rt);
-      } catch (e) {
-        console.log('Logout error:', e);
-      } finally {
-        await deleteTokens();
-        notifyAuthChange();
-        router.replace('/login');
+const logout = async () => {
+  const now = Date.now();
+
+  // double tap within 400ms
+  if (now - lastTap.current < 400) {
+    try {
+      const refreshToken = await getRefreshToken();
+
+      // try API logout if token exists
+      if (refreshToken) {
+        try {
+          await logoutApi(refreshToken);
+        } catch (apiError) {
+          // ignore API failure and continue logout
+        }
       }
+    } finally {
+      // ALWAYS logout locally no matter what happens
+      await deleteTokens();
+      notifyAuthChange();
+
+      // force navigation to login page
+      router.replace("/login");
     }
-    lastTap.current = now;
-  };
+  }
+
+  lastTap.current = now;
+};
+
 
 const loadWeather = async () => {
   try {
@@ -299,39 +312,22 @@ export default function TVDisplayScreen() {
 useEffect(() => {
   const forcePortrait = async () => {
     try {
-      console.log("STEP 1 → Starting portrait lock");
-
       await ScreenOrientation.unlockAsync();
-      console.log("STEP 2 → Previous orientation unlocked");
 
       await ScreenOrientation.lockAsync(
-        ScreenOrientation.OrientationLock.PORTRAIT_UP
-      );
-      console.log("STEP 3 → Portrait lock applied");
-
-      const currentOrientation =
-        await ScreenOrientation.getOrientationAsync();
-
-      console.log(
-        "STEP 4 → Current orientation value:",
-        currentOrientation
+        ScreenOrientation.OrientationLock.LANDSCAPE
       );
 
       setTimeout(() => {
-        console.log("STEP 5 → Refetching canvas after orientation lock");
         fetchCanvas();
       }, 500);
-
     } catch (e) {
-      console.log("PORTRAIT LOCK ERROR →", e);
+      // optional: silently ignore error
     }
   };
 
   if (Platform.OS !== "web") {
-    console.log("STEP 0 → Mobile device detected, forcing portrait");
     forcePortrait();
-  } else {
-    console.log("WEB detected → skipping portrait lock");
   }
 }, []);
 

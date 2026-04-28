@@ -433,7 +433,10 @@ const handleCreateDevice = async (data: any) => {
                               </View>
                               <View style={styles.mobileCardTitle}>
                                 <Text style={styles.deviceName}>{device.displayName}</Text>
-                                <Text style={styles.deviceId}>ID: {device.deviceId?.slice(0, 8)}</Text>
+                           <Text style={styles.deviceId}>
+                            ID: {device.deviceId ? `${device.deviceId.slice(0, 8)}...` : ""}
+                          </Text>
+
                               </View>
                               <StatusBadge status={device.status} isLive={isLive} />
                             </View>
@@ -463,7 +466,10 @@ const handleCreateDevice = async (data: any) => {
                               </View>
                               <View>
                                 <Text style={styles.deviceName}>{device.displayName}</Text>
-                                <Text style={styles.deviceId}>ID: {device.deviceId?.slice(0, 8)}</Text>
+                            <Text style={styles.deviceId}>
+                              ID: {device.deviceId ? `${device.deviceId.slice(0, 8)}...` : ""}
+                            </Text>
+
                               </View>
                             </View>
                             <View style={[styles.cell, styles.cellStatus]}>

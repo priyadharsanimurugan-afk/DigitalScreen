@@ -5,11 +5,12 @@ import {
   getDevices,
   updateDevice,
   deleteDevice,
-  getLiveDevices,
-  getDeviceStatusSummary,
+  getLiveCanvasDevices,
+  getDeviceStatusSummaryCanvas,
   Device,
   CreateDeviceRequest,
   DeviceStatusSummary,
+  getCanvasDevices,
 } from "@/services/device";
 
 export const useDevices = () => {
@@ -91,7 +92,7 @@ await fetchStatusSummary();
     try {
       setLoading(true);
       setError(null);
-      const data = await getDevices();
+      const data = await getCanvasDevices();
       // Ensure data is an array and filter out any null values
       const safeData = Array.isArray(data) ? data.filter(device => device !== null && device !== undefined) : [];
       setDevices(safeData);
@@ -166,7 +167,7 @@ await fetchStatusSummary();
     try {
       setLoading(true);
       setError(null);
-      const data = await getLiveDevices();
+      const data = await getLiveCanvasDevices();
       const safeData = Array.isArray(data) ? data.filter(device => device !== null && device !== undefined) : [];
       setLiveDevices(safeData);
       return { success: true, data: safeData };
@@ -185,7 +186,7 @@ await fetchStatusSummary();
   const fetchStatusSummary = async () => {
     try {
       setError(null);
-      const data = await getDeviceStatusSummary();
+      const data = await getDeviceStatusSummaryCanvas();
       const safeData = data || { totalDevices: 0, liveCount: 0, onlineCount: 0, offlineCount: 0 };
       setStatusSummary(safeData);
       return { success: true, data: safeData };
@@ -211,41 +212,58 @@ await fetchStatusSummary();
   //
   // 📈 GET STATISTICS (Fixed - No null errors)
   //
-  const getStatistics = useCallback(() => {
-    // Guard against null/undefined devices
-    if (!devices || !Array.isArray(devices)) {
-      return {
-        total: 0,
-        online: 0,
-        offline: 0,
-        live: 0,
-        onlinePercentage: 0,
-        offlinePercentage: 0,
-        livePercentage: 0,
-      };
-    }
-
-    // Filter out any null/undefined devices
-    const validDevices = devices.filter(device => device !== null && device !== undefined);
-    
-    const onlineDevices = validDevices.filter((d) => d?.status === "online");
-    const offlineDevices = validDevices.filter((d) => d?.status === "offline");
-    
-    // Support both isLive boolean and currentDisplay string from API
-    const liveDevicesCount = validDevices.filter(
-      (d) => d?.isLive === true || d?.currentDisplay === "yes"
-    ).length;
-
+// In useDevices.ts, update getStatistics:
+const getStatistics = useCallback(() => {
+  // Use statusSummary from API if available, otherwise fall back to calculations
+  if (statusSummary && statusSummary.totalDevices > 0) {
     return {
-      total: validDevices.length,
-      online: onlineDevices.length,
-      offline: offlineDevices.length,
-      live: liveDevicesCount,
-      onlinePercentage: validDevices.length > 0 ? (onlineDevices.length / validDevices.length) * 100 : 0,
-      offlinePercentage: validDevices.length > 0 ? (offlineDevices.length / validDevices.length) * 100 : 0,
-      livePercentage: validDevices.length > 0 ? (liveDevicesCount / validDevices.length) * 100 : 0,
+      total: statusSummary.totalDevices,
+      online: statusSummary.onlineCount,
+      offline: statusSummary.offlineCount,
+      live: statusSummary.liveCount,
+      onlinePercentage: statusSummary.totalDevices > 0 
+        ? (statusSummary.onlineCount / statusSummary.totalDevices) * 100 
+        : 0,
+      offlinePercentage: statusSummary.totalDevices > 0 
+        ? (statusSummary.offlineCount / statusSummary.totalDevices) * 100 
+        : 0,
+      livePercentage: statusSummary.totalDevices > 0 
+        ? (statusSummary.liveCount / statusSummary.totalDevices) * 100 
+        : 0,
     };
-  }, [devices]);
+  }
+  
+  // Fallback to calculating from devices array
+  if (!devices || !Array.isArray(devices)) {
+    return {
+      total: 0,
+      online: 0,
+      offline: 0,
+      live: 0,
+      onlinePercentage: 0,
+      offlinePercentage: 0,
+      livePercentage: 0,
+    };
+  }
+
+  const validDevices = devices.filter(device => device !== null && device !== undefined);
+  
+  const onlineDevices = validDevices.filter((d) => d?.status === "online");
+  const offlineDevices = validDevices.filter((d) => d?.status === "offline");
+  const liveDevicesCount = validDevices.filter(
+    (d) => d?.isLive === true || d?.currentDisplay === "yes"
+  ).length;
+
+  return {
+    total: validDevices.length,
+    online: onlineDevices.length,
+    offline: offlineDevices.length,
+    live: liveDevicesCount,
+    onlinePercentage: validDevices.length > 0 ? (onlineDevices.length / validDevices.length) * 100 : 0,
+    offlinePercentage: validDevices.length > 0 ? (offlineDevices.length / validDevices.length) * 100 : 0,
+    livePercentage: validDevices.length > 0 ? (liveDevicesCount / validDevices.length) * 100 : 0,
+  };
+}, [devices, statusSummary]); // Add statusSummary to dependencies
 
   //
   // 🔄 REFRESH ALL DATA

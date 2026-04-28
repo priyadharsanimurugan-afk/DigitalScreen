@@ -12,6 +12,8 @@ import { useLogin } from "@/hooks/useLoginAuth";
 import { clearRememberedCredentials, getRememberedCredentials, saveRememberedCredentials } from "@/utils/tokenStorage";
 import { notifyAuthChange } from "@/utils/authEvents";
 import { Ionicons } from "@expo/vector-icons";
+import * as ScreenOrientation from "expo-screen-orientation";
+
 
 export default function Login() {
   const [id, setId] = useState("");
@@ -44,6 +46,25 @@ export default function Login() {
     };
     loadCredentials();
   }, []);
+
+  useEffect(() => {
+  const forceLandscape = async () => {
+    try {
+      await ScreenOrientation.unlockAsync();
+
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT
+      );
+    } catch (e) {
+      // silently ignore
+    }
+  };
+
+  if (Platform.OS !== "web") {
+    forceLandscape();
+  }
+}, []);
+
 
   // Auto-focus login ID field and open keyboard automatically
   useEffect(() => {
