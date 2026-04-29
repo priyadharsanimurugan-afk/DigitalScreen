@@ -18,7 +18,9 @@ import {
   CheckCircle, Plus, MinusCircle, ChevronLeft, ChevronRight,
   ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown,
 } from 'lucide-react-native';
-
+import { BirthdayModal, BirthdayLayoutType } from '@/components/birthdayModal';
+import { useBirthdayCanvas } from '@/constants/useBirthday';
+import { Cake } from 'lucide-react-native';
 import {
   getContentLUT, sendCanvasContent,
   ContentLUT, ImageItem, DeviceLUTItem,
@@ -30,7 +32,7 @@ import { toastConfig } from "@/constants/toastConfig";
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const T = {
-  bg: '#F8F9FC',           // Light background instead of dark
+  bg: '#F0F4FF',           // Light background instead of dark
   surface: '#FFFFFF',       // White surfaces
   surfaceRaised: '#F1F3F9', // Slightly raised white
   border: '#E2E8F0',        // Light gray border
@@ -363,6 +365,8 @@ export default function AdminLayoutStudio() {
   const [selectingFor, setSelectingFor]         = useState<string | null>(null);
   const [selectedDevices, setSelectedDevices]   = useState<DeviceLUTItem[]>([]);
 
+  const { buildCanvasItems } = useBirthdayCanvas();
+  const [showBirthdayModal, setShowBirthdayModal] = useState(false);
   // Load images
   useEffect(() => { loadImages(1, true); }, []);
 
@@ -615,6 +619,10 @@ const handleSend = async () => {
               <TouchableOpacity style={styles.gridBtn} onPress={() => setShowGrid(g => !g)}>
                 <Grid3X3 size={14} color={showGrid ? T.accent : T.textMid} />
               </TouchableOpacity>
+              <TouchableOpacity style={styles.birthdayBtn} onPress={() => setShowBirthdayModal(true)}>
+  <Cake size={13} color={T.accent} />
+  <Text style={styles.birthdayBtnText}>Add Birthday</Text>
+</TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sendBtn, (sending || loading) && { opacity: 0.5 }]}
                 onPress={() => setShowDevicePicker(true)}
@@ -857,6 +865,17 @@ const handleSend = async () => {
             </View>
           )}
 
+<BirthdayModal
+  visible={showBirthdayModal}
+  onClose={() => setShowBirthdayModal(false)}
+  onConfirm={async (type, birthdays) => {
+    const newItems = await buildCanvasItems(type, birthdays, items); // ← pass full items array
+    if (newItems.length) {
+      setItems(prev => [...prev, ...newItems]);
+      setSelectedId(newItems[0].id);
+    }
+  }}
+/>
           {/* ── DEVICE PICKER MODAL ── */}
           <Modal visible={showDevicePicker} transparent animationType="fade" onRequestClose={() => setShowDevicePicker(false)}>
             <Pressable style={styles.overlay} onPress={() => setShowDevicePicker(false)}>
@@ -971,13 +990,13 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border,
+    backgroundColor: T.accent, borderBottomWidth: 1, borderBottomColor: T.border,
   },
   topBarLeft:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
   topBarRight:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  topBarTitle:   { fontSize: 15, fontWeight: '700', color: T.text },
+  topBarTitle:   { fontSize: 15, fontWeight: '700', color: '#fff' },
   topBarDivider: { width: 1, height: 14, backgroundColor: T.border },
-  topBarMeta:    { fontSize: 12, color: T.textMid },
+  topBarMeta:    { fontSize: 12, color: '#fff' },
   gridBtn: {
     width: 32, height: 32, borderRadius: 6,
     backgroundColor: T.surfaceRaised, borderWidth: 1, borderColor: T.border,
@@ -985,11 +1004,17 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: T.accent, borderRadius: 8,
+    backgroundColor: '#8b4300', borderRadius: 8,
     paddingHorizontal: 14, paddingVertical: 8,
   },
   sendBtnText: { color: T.white, fontWeight: '700', fontSize: 13 },
-
+birthdayBtn: {
+  flexDirection: 'row', alignItems: 'center', gap: 6,
+  backgroundColor: T.accentGhost,
+  borderWidth: 1, borderColor: T.accent + '60',
+  borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8,
+},
+birthdayBtnText: { color: T.accent, fontWeight: '700', fontSize: 13 },
   // Sidebar
   sidebar: {
     width: 220, backgroundColor: T.surface,
@@ -1013,11 +1038,11 @@ const styles = StyleSheet.create({
   // Canvas
   canvasArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', padding: 16, paddingTop: 20 },
   canvas: {
-    backgroundColor: '#f4f7ff',
+    backgroundColor: '#fefeff',
     borderWidth: 1, borderColor: T.border,
     borderRadius: 4, overflow: 'visible', position: 'relative',
   },
-  gridLine: { position: 'absolute', backgroundColor: 'rgb(240, 241, 255)' },
+  gridLine: { position: 'absolute', backgroundColor: 'rgb(241, 241, 241)' },
   emptyCanvas: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', gap: 8 },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: '#6b78b1', marginTop: 8 },
   emptySub:   { fontSize: 12, color:'#6b78b1'},
@@ -1032,7 +1057,7 @@ const styles = StyleSheet.create({
   itemOuter: { position: 'absolute' },
   itemInner: {
     flex: 1, borderRadius: 3, overflow: 'hidden',
-    backgroundColor: '#ecf5ff',
+    backgroundColor: '#f2f5ff',
     borderWidth: 1, borderColor: T.border,
   },
   itemSelected: { borderWidth: 2, borderColor: T.selectedBorder },
