@@ -1,10 +1,10 @@
 // hooks/useBirthday.ts
 import { useState, useCallback } from "react";
-import { getBirthdays, BirthdayItem } from "@/services/birthdaylist";
+import { getBirthdays, updateBirthdayContent, BirthdayItem } from "@/services/birthdaylist";
 import Toast from "react-native-toast-message";
 
 export const useBirthday = () => {
-  const [loading, setLoading]     = useState(false);
+  const [loading, setLoading] = useState(false);
   const [birthdays, setBirthdays] = useState<BirthdayItem[]>([]);
 
   // ── Error Handler ─────────────────────────────────────────────────────────
@@ -40,10 +40,40 @@ export const useBirthday = () => {
     }
   }, [handleError]);
 
+  // ── Update Birthday ───────────────────────────────────────────────────────
+  const updateBirthday = useCallback(
+    async (deviceId: string, isBirthday: boolean): Promise<boolean> => {
+      try {
+        setLoading(true);
+
+        const res = await updateBirthdayContent(deviceId, isBirthday);
+
+        Toast.show({
+          type: "success",
+          text1: "Success",
+          text2: res?.message || "Birthday content updated successfully",
+          visibilityTime: 3000,
+        });
+
+        // Optionally refresh the birthdays list after update
+        await fetchBirthdays();
+
+        return true;
+      } catch (error) {
+        handleError(error);
+        return false;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [handleError, fetchBirthdays]
+  );
+
   return {
     birthdays,
     loading,
     fetchBirthdays,
+    updateBirthday,
   };
 };
 

@@ -208,6 +208,7 @@ export interface DeviceCanvasData {
   id: number;
   title: string;
   description: string;
+  isBirthday: boolean;
   deviceId: string;
   screenWidth: number;
   screenHeight: number;

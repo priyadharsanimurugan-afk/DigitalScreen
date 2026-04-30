@@ -8,8 +8,11 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import Toast from "react-native-toast-message";
+import { configureReanimatedLogger } from 'react-native-reanimated';
 
-
+configureReanimatedLogger({
+  strict: false,
+});
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);

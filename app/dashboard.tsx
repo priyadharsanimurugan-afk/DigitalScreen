@@ -15,6 +15,7 @@ import ResponsiveLayout from "@/components/responsiveLayout";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useContent } from "@/hooks/useContent";
 import { getContentLUT, stopContentCanvas } from "@/services/content";
+import { useBirthday } from "@/hooks/useBirthday";
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const C = {
@@ -26,7 +27,7 @@ const C = {
   accentLight:  "#EEF2FF",
   brownMid:     "#A16207",
   brownLight:   "#FEF3C7",
-  bg:           "#F0F4FF",
+  bg:           "#f7f8ff",
   surface:      "#FFFFFF",
   surfaceAlt:   "#F8FAFC",
   glass:        "rgba(255,255,255,0.85)",
@@ -71,6 +72,7 @@ export interface CanvasLive {
   screenLayout?: string;
   deviceId?: string | any;
   items?: CanvasItem[];
+  isBirthday?: boolean;
 }
 
 interface ImageItem {
@@ -208,7 +210,7 @@ const StatCard = ({
     <View style={{
       position: "absolute", top: -20, right: -20,
       width: 70, height: 70, borderRadius: 35,
-      backgroundColor: cardBg ? "rgba(255,255,255,0.08)" : C.primaryGhost,
+      backgroundColor: cardBg ? "rgb(141, 72, 16)" : "rgba(255, 255, 255, 0.29)",
     }} />
     <View style={{
       width: 40, height: 40, borderRadius: 12,
@@ -239,21 +241,26 @@ const StatCard = ({
 // ─── LIVE DISPLAY CARD ────────────────────────────────────────────────────────
 const LiveDisplayCard = ({
   live,
+  imageList, // ✅ ADD THIS
   isMobile,
   onEdit,
   onStop,
+  onStopBirthday,
 }: {
   live: CanvasLive;
   imageList: ImageItem[];
   isMobile: boolean;
   onEdit: (l: CanvasLive) => void;
   onStop: (id: number, deviceId: string, deviceName: string) => void;
-}) => {
+  onStopBirthday: (deviceId: string, isBirthday: boolean) => void;
+}) => 
+ {
   const allItems: CanvasItem[] = live.items ?? [];
 
   const uniqueImageIds = [
     ...new Set(allItems.map((item) => item.imageId)),
   ];
+
 
   const slotCount = [
     ...new Set(allItems.map((item) => item.slotIndex)),
@@ -340,37 +347,73 @@ const LiveDisplayCard = ({
           </View>
 
           {/* LIVE Badge */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              backgroundColor: "#DCFCE7",
-              borderColor: "#BBF7D0",
-              borderWidth: 1,
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              borderRadius: 999,
-            }}
-          >
-            <View
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 10,
-                backgroundColor: "#16A34A",
-              }}
-            />
-            <Text
-              style={{
-                fontSize: 10,
-                fontFamily: "Poppins_700Bold",
-                color: "#15803D",
-              }}
-            >
-              LIVE
-            </Text>
-          </View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+
+  {/* LIVE Badge */}
+  <View
+    style={{
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: "#DCFCE7",
+      borderColor: "#BBF7D0",
+      borderWidth: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+    }}
+  >
+    <View
+      style={{
+        width: 7,
+        height: 7,
+        borderRadius: 10,
+        backgroundColor: "#16A34A",
+      }}
+    />
+    <Text
+      style={{
+        fontSize: 10,
+        fontFamily: "Poppins_700Bold",
+        color: "#15803D",
+      }}
+    >
+      LIVE
+    </Text>
+  </View>
+
+<TouchableOpacity
+  onPress={() =>
+    onStop(live.id, live.deviceId ?? "canvas", live.displayName ?? "Canvas Display")
+  }
+  style={{
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  }}
+>
+  <Ionicons name="stop" size={14} color="#DC2626" />
+  <Text
+    style={{
+      fontSize: 10,
+      fontFamily: "Poppins_700Bold",
+      color: "#B91C1C",
+    }}
+  >
+    Stop Display
+  </Text>
+</TouchableOpacity>
+
+
+</View>
+
         </View>
 
         {/* TV Preview */}
@@ -493,86 +536,98 @@ const LiveDisplayCard = ({
         />
 
         {/* Action Buttons */}
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 10,
-          }}
-        >
-          {/* Edit Button */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => onEdit(live)}
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              paddingVertical: 12,
-              borderRadius: 14,
-              borderWidth: 1.5,
-              borderColor: C.primary,
-              backgroundColor: C.primaryGhost,
-            }}
-          >
-            <Ionicons
-              name="create-outline"
-              size={16}
-              color={C.primary}
-            />
+    <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 4 }}>
+  
+  {/* Edit Layout Button */}
+  <TouchableOpacity
+    activeOpacity={0.85}
+    onPress={() => onEdit(live)}
+    style={{
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      borderWidth: 1.8,
+      borderColor: C.primary,
+      backgroundColor: C.primaryGhost,
+      shadowColor: C.primary,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      elevation: 4,
+    }}
+  >
+    <Ionicons name="create-outline" size={18} color={C.primary} />
+    <Text
+      style={{
+        fontSize: 13.5,
+        fontFamily: "Poppins_600SemiBold",
+        color: C.primary,
+        letterSpacing: 0.2,
+      }}
+    >
+      Edit Layout
+    </Text>
+  </TouchableOpacity>
 
-            <Text
-              style={{
-                fontSize: 12,
-                fontFamily: "Poppins_600SemiBold",
-                color: C.primary,
-              }}
-            >
-              Edit Layout
-            </Text>
-          </TouchableOpacity>
 
-          {/* Stop Button */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() =>
-              onStop(
-                live.id,
-                live.deviceId ?? "canvas",
-                live.displayName ?? "Canvas Display"
-              )
-            }
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              paddingVertical: 12,
-              borderRadius: 14,
-              borderWidth: 1.5,
-              borderColor: "#FECACA",
-              backgroundColor: "#FEF2F2",
-            }}
-          >
-            <Ionicons
-              name="stop-circle-outline"
-              size={16}
-              color={C.danger}
-            />
 
-            <Text
-              style={{
-                fontSize: 12,
-                fontFamily: "Poppins_600SemiBold",
-                color: C.danger,
-              }}
-            >
-              Stop Display
-            </Text>
-          </TouchableOpacity>
-        </View>
+  {/* Stop Birthday Button */}
+<TouchableOpacity
+  activeOpacity={0.85}
+onPress={() => {
+  if (!live.deviceId) return;
+ onStopBirthday(live.deviceId, live.isBirthday ?? false);
+
+}}
+
+
+  style={{
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.8,
+
+    // 🎯 Dynamic styles
+    borderColor: live.isBirthday ? "#FCD34D" : "#51d37f",   // amber vs green
+    backgroundColor: live.isBirthday ? "#FFFBEB" : "#ECFDF5",
+
+    shadowColor: live.isBirthday ? "#D97706" : "#10B981",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  }}
+>
+  <Ionicons
+    name={live.isBirthday ? "gift-outline" : "gift-outline"}
+    size={18}
+    color={live.isBirthday ? "#B45309" : "#059669"}
+  />
+
+  <Text
+    style={{
+      fontSize: 13.5,
+      fontFamily: "Poppins_600SemiBold",
+      color: live.isBirthday ? "#92400E" : "#047857",
+      letterSpacing: 0.2,
+    }}
+  >
+    {live.isBirthday ? "Stop Birthday" : "Display Birthday"}
+  </Text>
+</TouchableOpacity>
+
+
+</View>
       </View>
     </View>
   );
@@ -638,6 +693,66 @@ const StopModal = ({
   </Modal>
 );
 
+const BirthdayModal = ({
+  visible, onCancel, onConfirm, isBirthday,
+}: {
+  visible: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  isBirthday: boolean;
+}) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+      <View style={{
+        backgroundColor: C.surface, borderRadius: 24, padding: 28,
+        width: "100%", maxWidth: 370,
+        shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 30, elevation: 20,
+      }}>
+        <View style={{ alignItems: "center", marginBottom: 20 }}>
+          <View style={{
+            width: 62, height: 62, borderRadius: 31,
+            backgroundColor: isBirthday ? "#FFFBEB" : "#ECFDF5",
+            justifyContent: "center", alignItems: "center", marginBottom: 14,
+            borderWidth: 2, borderColor: isBirthday ? "#FCD34D" : "#6EE7B7",
+          }}>
+            <Ionicons name="gift-outline" size={32} color={isBirthday ? "#B45309" : "#059669"} />
+          </View>
+          <Text style={{ fontSize: 18, fontFamily: "Poppins_700Bold", color: C.text }}>
+            {isBirthday ? "Stop Birthday Display?" : "Start Birthday Display?"}
+          </Text>
+          <Text style={{ fontSize: 13, fontFamily: "Poppins_400Regular", color: C.textLight, textAlign: "center", marginTop: 10, lineHeight: 21 }}>
+       {isBirthday
+  ? "This will remove the birthday content from the TV screen."
+  : "This will display birthday content on the TV screen."}
+
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <TouchableOpacity onPress={onCancel} style={{
+            flex: 1, paddingVertical: 14, borderRadius: 13,
+            borderWidth: 1.5, borderColor: C.border, alignItems: "center",
+            backgroundColor: C.surfaceAlt,
+          }}>
+            <Text style={{ fontSize: 14, fontFamily: "Poppins_600SemiBold", color: C.textMid }}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onConfirm} style={{
+            flex: 1, paddingVertical: 14, borderRadius: 13,
+            backgroundColor: isBirthday ? "#D97706" : "#059669",
+            flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+            shadowColor: isBirthday ? "#D97706" : "#059669",
+            shadowOpacity: 0.35, shadowRadius: 10, elevation: 5,
+          }}>
+            <Ionicons name="gift-outline" size={15} color="#fff" />
+            <Text style={{ fontSize: 14, fontFamily: "Poppins_700Bold", color: "#fff" }}>
+              {isBirthday ? "Yes, Stop" : "Yes, Start"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  </Modal>
+);
+
 // ─── IMAGE LIGHTBOX ───────────────────────────────────────────────────────────
 const ImageLightbox = ({ image, onClose }: { image: ImageItem | null; onClose: () => void }) => {
   const imgUrl = image?.imageurl ?? image?.images ?? null;
@@ -682,10 +797,22 @@ export default function DashboardScreen() {
     fetchDeviceCanvas,
   } = useContent();
 
+  const {
+  updateBirthday,
+} = useBirthday();
+
   const [refreshing, setRefreshing] = useState(false);
   const [stopVisible, setStopVisible] = useState(false);
   const [stopPayload, setStopPayload] = useState<{ contentId: number; deviceId: string; deviceName: string } | null>(null);
   const [lightboxImg, setLightboxImg] = useState<ImageItem | null>(null);
+
+  const [birthdayModalVisible, setBirthdayModalVisible] = useState(false);
+  const [birthdayPayload, setBirthdayPayload] = useState<{
+    deviceId: string;
+    isBirthday: boolean;
+    deviceName?: string;
+  } | null>(null);
+
 
   const isMobile = sw < BP.mobile;
   const isTablet = sw >= BP.mobile && sw < BP.desktop;
@@ -706,7 +833,8 @@ export default function DashboardScreen() {
     return [];
   }, [deviceDisplay]);
 
-  const liveCols = isDesktop ? 2 : 1;
+const liveCols = isDesktop ? 3 : isTablet ? 2 : 1;
+
   const uploadCols = isMobile ? 3 : isTablet ? 4 : 6;
   const pad = isMobile ? 14 : isTablet ? 18 : 24;
 
@@ -755,6 +883,45 @@ export default function DashboardScreen() {
       }
     });
   };
+const handleStopBirthday = (deviceId: string, isBirthday: boolean) => {
+  setBirthdayPayload({ deviceId, isBirthday });
+  setBirthdayModalVisible(true);
+};
+
+
+const handleConfirmBirthday = async () => {
+  if (!birthdayPayload) return;
+  setBirthdayModalVisible(false);
+  const { deviceId, isBirthday } = birthdayPayload;
+  try {
+
+  const newValue = !isBirthday;
+
+const success = await updateBirthday(deviceId, newValue);
+
+if (success) {
+  setBirthdayPayload(null);
+  await fetchDeviceCanvas();
+
+  Toast.show({
+    type: "success",
+    text1: newValue ? "Birthday Started" : "Birthday Stopped",
+    text2: newValue
+      ? "Birthday content enabled successfully"
+      : "Birthday content removed successfully",
+    visibilityTime: 2500,
+  });
+}
+  } catch {
+    Toast.show({
+      type: "error",
+      text1: "Error",
+      text2: "Failed to update birthday content",
+      visibilityTime: 2500,
+    });
+  }
+};
+
 
   const stats = getStatistics();
 
@@ -769,6 +936,12 @@ export default function DashboardScreen() {
           onConfirm={handleConfirmStop}
           deviceName={stopPayload?.deviceName}
         />
+        <BirthdayModal
+  visible={birthdayModalVisible}
+  onCancel={() => setBirthdayModalVisible(false)}
+  onConfirm={handleConfirmBirthday}
+  isBirthday={birthdayPayload?.isBirthday ?? false}
+/>
         <ImageLightbox image={lightboxImg} onClose={() => setLightboxImg(null)} />
 
         <ScrollView
@@ -920,7 +1093,13 @@ export default function DashboardScreen() {
                     <View
                       key={live.id}
                       style={{
-                        width: liveCols === 2 ? "48%" : "100%",
+                       width:
+  liveCols === 3
+    ? "31.5%"
+    : liveCols === 2
+    ? "48%"
+    : "100%",
+
                         flexGrow: 1,
                         flexShrink: 1,
                         minWidth: isMobile ? "100%" : 340,
@@ -931,6 +1110,7 @@ export default function DashboardScreen() {
                         isMobile={isMobile}
                         onEdit={handleEdit}
                         onStop={handleStop}
+                         onStopBirthday={handleStopBirthday}
                       />
                     </View>
                   ))}

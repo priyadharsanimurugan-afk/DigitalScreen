@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import {
   uploadImage,
   getImages,
-  deleteImage,
+  deleteCanvasImage,
   ImageItem,
 } from "@/services/images";
 import Toast from "react-native-toast-message";
@@ -86,7 +86,7 @@ const upload = useCallback(async (
   const removeImage = useCallback(async (id: number): Promise<boolean> => {
     try {
       setLoading(true);
-      await deleteImage(id);
+      await deleteCanvasImage(id);
       
       // Instant update - remove from array
       setImages((prev) => prev.filter((img) => img.id !== id));

@@ -94,3 +94,8 @@ export const getImageFileUrl = (id: number): string =>
 export const deleteImage = async (id: number): Promise<void> => {
   await api.post(`/images/delete/${id}`);
 };
+
+
+export const deleteCanvasImage = async (id: number): Promise<void> => {
+  await api.post(`/images/delete-canvas/${id}`);
+};

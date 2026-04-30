@@ -30,3 +30,26 @@ export const getBirthdays = async (): Promise<BirthdayItem[]> => {
     imageUrl:     item.imageUrl ?? "",
   }));
 };
+
+export interface UpdateBirthdayContentResponse {
+  message?: string;
+  data?: any;
+}
+
+export const updateBirthdayContent = async (
+  deviceId: string,
+  isBirthday: boolean
+): Promise<UpdateBirthdayContentResponse> => {
+  const response = await api.post(
+    `/devices/update-birthday-content`,
+    null,
+    {
+      params: {
+        deviceId,
+        isBirthday,
+      },
+    }
+  );
+
+  return response.data;
+};
