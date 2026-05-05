@@ -1,6 +1,4 @@
 // TVDisplayScreen.tsx
-// TV-side page: polls API and renders canvas fullscreen.
-// Birthday section: seamless bg, elegant left label + right queue slider, image-only cards.
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
@@ -21,7 +19,6 @@ import { getBirthdays, BirthdayItem } from '@/services/birthdaylist';
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-
 const POLL_INTERVAL       = 8_000;
 const SLOT_CYCLE_INTERVAL = 5_000;
 const BIRTHDAY_REFRESH_MS = 24 * 60 * 60 * 1000;
@@ -32,20 +29,16 @@ const HEADER_H            = 47;
 const screenWidth = Dimensions.get('window').width;
 const isMobile = screenWidth < 768;
 
-const BIRTHDAY_STRIP_H = isMobile ? 70 : 170;
-const BIRTHDAY_CARD_W  = isMobile ? 135 : 230;
-const BIRTHDAY_CARD_H  = isMobile ? 95 : 145;
+const BIRTHDAY_STRIP_H = isMobile ? 30 : 50;
+const BIRTHDAY_CARD_W  = isMobile ? 90 : 80;
+const BIRTHDAY_CARD_H  = isMobile ? 55 : 50;
 
-const CARD_GAP            = isMobile ? 9 : 12;
+const CARD_GAP            = isMobile ? 2 : 8;
 const QUEUE_STEP_INTERVAL = 3_500;
 const QUEUE_ANIM_DURATION = 500;
 
 const BIRTHDAY_CACHE_KEY     = 'cached_birthdays_v2';
 const BIRTHDAY_TIMESTAMP_KEY = 'cached_birthdays_ts_v2';
-
-
-
-
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface WeatherData { temp: number; icon: string; condition: string; }
@@ -103,13 +96,11 @@ const Header: React.FC<{ onPress: () => void }> = ({ onPress }) => {
   const isMobile = width < 768;
   const lastTap  = useRef(0);
 
-  // ── FIX 3: Clear all birthday caches on logout ────────────────────────────
   const clearBirthdayCache = async () => {
     try {
       await AsyncStorage.removeItem(BIRTHDAY_CACHE_KEY);
       await AsyncStorage.removeItem(BIRTHDAY_TIMESTAMP_KEY);
       await AsyncStorage.removeItem('lastWeather');
-      // Clear any other session-bound keys
       const allKeys = await AsyncStorage.getAllKeys();
       const birthdayRelated = allKeys.filter(k =>
         k.startsWith('cached_birthdays') || k.startsWith('birthday_')
@@ -127,7 +118,7 @@ const Header: React.FC<{ onPress: () => void }> = ({ onPress }) => {
         const rt = await getRefreshToken();
         if (rt) { try { await logoutApi(rt); } catch {} }
       } finally {
-        await clearBirthdayCache(); // ← clear cache before routing away
+        await clearBirthdayCache();
         await deleteTokens();
         notifyAuthChange();
         router.replace('/login');
@@ -193,8 +184,8 @@ const useFloatingAnimation = () => {
       Animated.sequence([
         Animated.timing(floatAnim, {
           toValue: 1,
-          duration: 2500, // faster → more noticeable
-          easing: Easing.inOut(Easing.ease), // smooth natural motion
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
@@ -212,12 +203,9 @@ const useFloatingAnimation = () => {
 
   return floatAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -3], // 🔥 sweet spot (NOT too big, NOT invisible)
+    outputRange: [0, -3],
   });
 };
-
-
-
 
 const FloatFadeImage: React.FC<{
   uri: string;
@@ -314,32 +302,60 @@ const CyclingSlot: React.FC<{
   );
 };
 
-// ─── BALLOON ─────────────────────────────────────────────────────────────────
-const BalloonFloat: React.FC<{ delay?: number; emoji?: string }> = ({ delay = 0, emoji = '🎈' }) => {
-  const y    = useRef(new Animated.Value(0)).current;
-  const sway = useRef(new Animated.Value(0)).current;
+// ─── RIBBON BOW (replaces balloon) ───────────────────────────────────────────
+const BalloonFloat: React.FC<{ delay?: number; side?: 'left' | 'right' }> = ({ delay = 0, side = 'left' }) => {
+  const y = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const fa = Animated.loop(Animated.sequence([
-      Animated.timing(y,    { toValue: -7, duration: 2000, delay, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(y,    { toValue: 0,  duration: 2000,        easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]));
-    const sa = Animated.loop(Animated.sequence([
-      Animated.timing(sway, { toValue: 3,  duration: 1700, delay, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(sway, { toValue: -3, duration: 1700,        easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ]));
-    fa.start(); sa.start();
-    return () => { fa.stop(); sa.stop(); };
+    Animated.loop(Animated.sequence([
+      Animated.timing(y, { toValue: -6, duration: 1800, delay, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(y, { toValue: 0,  duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ])).start();
   }, []);
 
   return (
-    <Animated.Text style={[styles.balloon, { transform: [{ translateY: y }, { translateX: sway }] }]}>
-      {emoji}
+   <Animated.Text
+    style={[
+      styles.balloon,
+      {
+        fontSize: isMobile ? 8 : 19, // 👈 bigger in portrait mobile
+        transform: [{ translateY: y }],
+      },
+    ]}
+  >
+   🎈
     </Animated.Text>
   );
 };
 
-// ─── FIX 1: BIRTHDAY LEFT PANEL — Elegant, premium redesign ──────────────────
+// ─── CANDLE (replaces gift box) ───────────────────────────────────────────────
+const GiftBox: React.FC<{ delay?: number }> = ({ delay = 0 }) => {
+  const y = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.timing(y, { toValue: -5, duration: 1600, delay, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(y, { toValue: 0,  duration: 1600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ])).start();
+  }, []);
+
+  return (
+<Animated.Text
+  style={[
+    styles.giftBox,
+    {
+      fontSize: isMobile ? 8 : 16,
+        transform: [{ translateY: y }],
+     
+    },
+  ]}
+>
+      🎁
+    </Animated.Text>
+  );
+};
+
+// ─── BIRTHDAY LEFT PANEL ──────────────────────────────────────────────────────
 const BirthdayLabel: React.FC<{ isMobile?: boolean }> = ({ isMobile = false }) => {
   const opacity   = useRef(new Animated.Value(0)).current;
   const slideY    = useRef(new Animated.Value(12)).current;
@@ -351,7 +367,6 @@ const BirthdayLabel: React.FC<{ isMobile?: boolean }> = ({ isMobile = false }) =
       Animated.timing(slideY,  { toValue: 0, duration: 900, easing: Easing.out(Easing.ease), useNativeDriver: true }),
     ]).start();
 
-    // Subtle shimmer pulse on the gold text
     const shimmerLoop = Animated.loop(Animated.sequence([
       Animated.timing(shimmer, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       Animated.timing(shimmer, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
@@ -363,35 +378,29 @@ const BirthdayLabel: React.FC<{ isMobile?: boolean }> = ({ isMobile = false }) =
   const glowOpacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
 
   return (
-    <View style={[styles.birthdayLabel, isMobile && styles.birthdayLabelMobile]}>
-
-      {/* Balloons row — unchanged count */}
-      <View style={styles.balloonsRow}>
-        <BalloonFloat delay={0}   emoji="🎈" />
-        <BalloonFloat delay={200} emoji="🎈" />
-        <BalloonFloat delay={400} emoji="🎈" />
-     
+    <View style={styles.birthdayLabelContainer}>
+      {/* Left side ribbon bows */}
+      <View style={styles.leftBalloons}>
+        <BalloonFloat delay={0} side="left" />
+        <BalloonFloat delay={400} side="left" />
       </View>
 
-      {/* ── Premium text block ── */}
+      {/* Center text block */}
       <Animated.View style={[styles.bdayTextBlock, { opacity, transform: [{ translateY: slideY }] }]}>
-
-        {/* "HAPPY" — spaced tracking, soft white */}
         <Text style={[styles.bdayLine1, isMobile && styles.bdayLine1Mobile]}>
           H A P P Y
         </Text>
-
-        {/* Thin gold rule above "Birthday!" */}
-        <View style={styles.bdayGoldRule} />
-
-        {/* "Birthday!" — large, bold, gold with glow */}
+        <View style={[styles.bdayGoldRule, isMobile && styles.bdayGoldRuleMobile]} />
         <Animated.Text style={[styles.bdayLine2, isMobile && styles.bdayLine2Mobile, { opacity: glowOpacity }]}>
           Birthday!
         </Animated.Text>
-
-   
       </Animated.View>
 
+      {/* Right side candles */}
+      <View style={styles.rightGifts}>
+        <GiftBox delay={0} />
+        <GiftBox delay={500} />
+      </View>
     </View>
   );
 };
@@ -539,7 +548,6 @@ export default function TVDisplayScreen() {
   const [error, setError]     = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ─── FIX 2: Detect portrait mobile ────────────────────────────────────────
   const isMobile   = width < 768;
   const isPortrait = height > width;
   const isMobilePortrait = isMobile && isPortrait;
@@ -730,127 +738,117 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
 
+  birthdayLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    // minWidth: 200,
+  },
 
+  leftBalloons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
 
+  rightGifts: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
 
+  balloon: {
+    fontSize: isMobile ? 14 : 16,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
 
-balloon: {
-  fontSize: isMobile ? 14 : 26,
-},
+  giftBox: {
+    fontSize: isMobile ? 5 : 18,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
 
-bdayGoldRule: {
-  width: isMobile ? 34 : 80,
-  height: 1,
-  backgroundColor: 'rgba(255,215,0,0.45)',
-  marginBottom: isMobile ? 1 : 4,
-  marginTop: isMobile ? 1 : 0,
-  borderRadius: 1,
-},
+  bdayGoldRule: {
+    width:isMobile ? 40 : 80,
+    height: isMobile ? 0.5 : 1.5,
+    backgroundColor: 'rgba(255,215,0,0.6)',
+    marginVertical: 4,
+    borderRadius: 1,
+  },
 
-birthdayLabel: {
-  width: isMobile ? 72 : 160,
-  minWidth: isMobile ? 60 : 130,
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: isMobile ? 0 : 4,
-  paddingHorizontal: isMobile ? 0 : 6,
-},
+  bdayGoldRuleMobile: {
+    width: 40,
+    height: 1,
+    marginVertical: 2,
+  },
 
-verticalRule: {
-  width: 1,
-  height: isMobile ? '42%' : '65%',
-  backgroundColor: 'rgba(255,255,255,0.10)',
-  marginHorizontal: isMobile ? 4 : 18,
-},
+  verticalRule: {
+    width: 1,
+    height: '65%',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    marginHorizontal: 18,
+  },
 
-birthdayInner: {
-  flex: 1,
-  flexDirection: 'row',
-  alignItems: 'center',
-  paddingHorizontal: isMobile ? 10 : 20,
-  paddingVertical: isMobile ? 6 : 10,
-},
+  verticalRuleMobile: {
+    marginHorizontal: 8,
+    height: '50%',
+  },
 
-  birthdayLabelMobile: {
-  width: 72,
-  minWidth: 60,
-  gap: 0,
-  paddingHorizontal: 0,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
+  birthdayInner: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
 
-balloonsRow: {
-  flexDirection: 'row',
-  gap: 2,
-  marginBottom: 0,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-
-bdayTextBlock: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 0,
-},
-
-bdayLine1Mobile: {
-  fontSize: 6,
-  letterSpacing: 1,
-  marginBottom: 0,
-  lineHeight: 8,
-},
-
-
-bdayLine2Mobile: {
-  fontSize: 11,
-  lineHeight: 13,
-  marginBottom: 0,
-},
-
-verticalRuleMobile: {
-  marginHorizontal: 4,
-  height: '42%',
-},
-
-  // ── FIX 2: tighter padding on portrait mobile ─────────────────────────────
   birthdayInnerMobile: {
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
 
-  // ── FIX 1: Left label — premium redesign ─────────────────────────────────────
+  bdayTextBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
+  bdayLine1: {
+    color: 'rgba(255,255,255,0.85)',
+  fontSize: isMobile ? 6 : 12,
+    fontWeight: '800',
+    letterSpacing: 4,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    marginBottom: 2,
+  },
 
-  // "H A P P Y" — refined, spaced
- bdayLine1: {
-  color: 'rgba(255,255,255,0.75)',
-  fontSize: isMobile ? 8 : 19,
-  fontWeight: '800',
-  letterSpacing: isMobile ? 1 : 4,
-  textAlign: 'center',
-  fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  marginBottom: isMobile ? 0 : 2,
-  lineHeight: isMobile ? 8 : 24,
-},
+  bdayLine1Mobile: {
+    fontSize: 8,
+    letterSpacing: 0,
+    marginBottom: 1,
+  },
 
-bdayLine2: {
-  color: '#FFD700',
-  fontSize: isMobile ? 11 : 26,
-  fontWeight: '800',
-  letterSpacing: isMobile ? 0.1 : 0.3,
-  textAlign: 'center',
-  fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  textShadowColor: 'rgba(255,215,0,0.55)',
-  textShadowOffset: { width: 0, height: 0 },
-  textShadowRadius: isMobile ? 6 : 14,
-  marginBottom: isMobile ? 0 : 2,
-  lineHeight: isMobile ? 13 : 32,
-},
+  bdayLine2: {
+    color: '#FFD700',
+    fontSize: isMobile ? 6 : 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    textShadowColor: 'rgba(255,215,0,0.55)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+  },
 
-
-
+  bdayLine2Mobile: {
+    fontSize: 9,
+    letterSpacing: 0.3,
+    textShadowRadius: 6,
+  },
 
   // ── Queue slider ─────────────────────────────────────────────────────────────
   queueViewport: {
@@ -880,12 +878,4 @@ bdayLine2: {
     width: '100%',
     height: '100%',
   },
-
-
-
-
-
-
-
-  
 });
